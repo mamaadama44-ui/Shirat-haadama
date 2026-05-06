@@ -5,9 +5,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>🌾 שירת האדמה</title>
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -87,25 +84,8 @@ textarea.finp{resize:vertical;line-height:1.5}
 <div id="toast" class="toast"></div>
 <div id="root"></div>
 <script>
-// ============================================================
-// FIREBASE — שירת האדמה v6 (סנכרון ענן)
-// ============================================================
 const PIN='1234';
-const firebaseConfig = {
-  apiKey: "AIzaSyCCqudMDZU7voUmGEmXT0iUFIMexnSqrgI",
-  authDomain: "shirat-haadama.firebaseapp.com",
-  projectId: "shirat-haadama",
-  storageBucket: "shirat-haadama.firebasestorage.app",
-  messagingSenderId: "564770382394",
-  appId: "1:564770382394:web:74692bab93e4eea1a2cb03" // ⚠️ ייתכן שחתוך — בדוק ב-Firebase Console
-};
-let FS, DOC;
-try {
-  firebase.initializeApp(firebaseConfig);
-  FS = firebase.firestore();
-  DOC = FS.collection('shirat').doc('main');
-  FS.enablePersistence().catch(()=>{});
-} catch(e) { console.warn('Firebase init:', e); }
+let FS=null,DOC=null;
 const EMOJIS=['🧑‍🌾','👨‍🌾','👩‍🌾','🐓','🌿','🌻','🦎','🐇','🌾','🥕','🍅','🌺'];
 const COLS=['#C85A3A','#6a9a5a','#6b4a2a','#6a4a8e','#2a5a6e','#b8832a','#d4633a','#2a6e5a'];
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -115,11 +95,9 @@ const PRI={high:{l:'גבוהה',c:'#C85A3A',pts:10},medium:{l:'בינונית',c
 const REC={daily:'יומי',weekly:'שבועי',monthly:'חודשי'};
 const UNITS=["יח׳",'ק"ג','גרם','ליטר','שקים','שתילים','זוגות','בקבוקים'];
 
-// STORAGE — Firebase backed
+// STORAGE — localStorage
 let DB = null;
 function saveToCloud(){
-if(!DOC||!DB)return;
-try{DOC.set(JSON.parse(JSON.stringify(DB))).catch(e=>console.warn(‘Save:’,e));}catch(e){}
 try{localStorage.setItem(‘sha5_bk’,JSON.stringify(DB));}catch(e){}
 }
 const ST={g:(k,d)=>DB?(DB[k]!==undefined?DB[k]:d):d, s:(k,v)=>{if(DB){DB[k]=v;saveToCloud();}}};
@@ -834,54 +812,20 @@ ac.appendChild(el(‘div’,{className:‘flab’},‘שם’));ac.appendChild(n
 // INIT — טוען מהענן
 // ============================================================
 function mergeDB(data){
-DB=Object.assign({},DEFAULT_DB,data);
+DB=Object.assign({},DEFAULT_DB,data||{});
 [‘users’,‘rT’,‘oT’,‘actLog’,‘hoursLog’,‘bonus’,‘inv’,‘equip’,‘projects’].forEach(k=>{if(!Array.isArray(DB[k]))DB[k]=JSON.parse(JSON.stringify(DEFAULT_DB[k]||[]));});
 [‘comps’,‘taskNotes’,‘journal’].forEach(k=>{if(typeof DB[k]!==‘object’||Array.isArray(DB[k]))DB[k]={};});
 }
 
-function startSync(){
-if(!DOC)return;
-DOC.onSnapshot(snap=>{
-if(!snap.exists||!ME)return;
-mergeDB(snap.data());
-const main=document.getElementById(‘app-main’);
-if(main)setTimeout(()=>renderTab(main),200);
-const hp=document.getElementById(‘hpts’);if(hp)hp.textContent=gp(ME.id)+‘⭐’;
-},err=>console.warn(‘Sync:’,err));
-}
-
 function initApp(){
-// טעינה מהירה מ-localStorage
 try{
 const bk=JSON.parse(localStorage.getItem(‘sha5_bk’)||‘null’);
-mergeDB(bk||{});
-}catch(e){mergeDB({});}
-
-// הצג login מיד
+mergeDB(bk);
+}catch(e){mergeDB(null);}
 renderLogin();
-
-// חבר Firebase ברקע
-if(DOC){
-DOC.get().then(snap=>{
-if(snap.exists){
-mergeDB(snap.data());
-} else {
-DOC.set(JSON.parse(JSON.stringify(DB))).catch(e=>console.warn(e));
-}
-startSync();
-// עדכן אם כבר מחובר
-if(ME){
-const main=document.getElementById(‘app-main’);
-if(main)renderTab(main);
-}
-}).catch(e=>{
-console.warn(‘Firebase:’,e);
-toast(‘⚠️ מצב לא מקוון’);
-});
-}
 }
 initApp();
 </script>
 
 </body>
-</html>הודבק
+</html>
