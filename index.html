@@ -693,7 +693,7 @@ function rHours(main){
     const body=el('div',{className:'h-body'});
     if(!uLogs.length)body.appendChild(el('div',{style:{color:'#bbb',fontSize:'12px',textAlign:'center',padding:'9px 0'}},'אין רישומים החודש'));
     else uLogs.slice(0,5).forEach(log=>{
-      const r=el('div',{className:'h-row'});r.appendChild(el('span',{style:{color:'var(--clay)',width:'65px',flexShrink:0,fontSize:'10px'}},new Date(log.date).toLocaleDateString('he-IL',{day:'numeric',month:'short',weekday:'short'})));r.appendChild(el('span',{style:{flex:1,fontWeight:600}},`${log.start}—${log.end}${log.note?` · ${log.note}`:''}`));r.appendChild(el('span',{style:{background:'var(--mist)',padding:'2px 8px',borderRadius:'8px',fontWeight:700,fontSize:'11px'}},log.hours.toFixed(1)+"ש'"));
+      const r=el('div',{className:'h-row'});r.appendChild(el('span',{style:{color:'var(--clay)',width:'65px',flexShrink:0,fontSize:'10px'}},new Date(log.date).toLocaleDateString('he-IL',{day:'numeric',month:'short',weekday:'short'}]));r.appendChild(el('span',{style:{flex:1,fontWeight:600}},`${log.start}—${log.end}${log.note?` · ${log.note}`:''}`));r.appendChild(el('span',{style:{background:'var(--mist)',padding:'2px 8px',borderRadius:'8px',fontWeight:700,fontSize:'11px'}},log.hours.toFixed(1)+"ש'"));
       if(ME.role==='מנהל'){const db=el('button',{style:{background:'none',border:'none',color:'#ddd',fontSize:'11px',cursor:'pointer'}},'✕');db.onclick=()=>{DB.hoursLog=DB.hoursLog.filter(l=>l.id!==log.id);saveLogs();toast('נמחק');rHours(main);};r.appendChild(db);}
       body.appendChild(r);
     });
