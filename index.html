@@ -76,16 +76,13 @@ textarea.finp{resize:vertical;line-height:1.5}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .sec-t{font-weight:700;font-size:13px;color:var(--earth);margin:13px 0 7px}
 .empty{text-align:center;color:#bbb;padding:22px;font-size:13px}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--sage);display:inline-block;margin-left:5px;animation:pulse 2s infinite;vertical-align:middle}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 </style>
 </head>
 <body>
 <div id="toast" class="toast"></div>
 <div id="root"></div>
 <script>
-const PIN='1234';
-let FS=null,DOC=null;
+const PIN='1234',LS='sha5';
 const EMOJIS=['🧑‍🌾','👨‍🌾','👩‍🌾','🐓','🌿','🌻','🦎','🐇','🌾','🥕','🍅','🌺'];
 const COLS=['#C85A3A','#6a9a5a','#6b4a2a','#6a4a8e','#2a5a6e','#b8832a','#d4633a','#2a6e5a'];
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -95,15 +92,11 @@ const PRI={high:{l:'גבוהה',c:'#C85A3A',pts:10},medium:{l:'בינונית',c
 const REC={daily:'יומי',weekly:'שבועי',monthly:'חודשי'};
 const UNITS=["יח׳",'ק"ג','גרם','ליטר','שקים','שתילים','זוגות','בקבוקים'];
 
-// STORAGE — localStorage
-let DB = null;
-function saveToCloud(){
-try{localStorage.setItem(‘sha5_bk’,JSON.stringify(DB));}catch(e){}
-}
-const ST={g:(k,d)=>DB?(DB[k]!==undefined?DB[k]:d):d, s:(k,v)=>{if(DB){DB[k]=v;saveToCloud();}}};
+// STORAGE
+const ST={g:(k,d)=>{try{const v=localStorage.getItem(LS+’*’+k);return v?JSON.parse(v):d}catch{return d}},s:(k,v)=>{try{localStorage.setItem(LS+’*’+k,JSON.stringify(v))}catch{}}};
 
-// DEFAULT DATA
-const DEFAULT_DB={
+// DATA
+let DB={
 users:ST.g(‘users’,[]),
 rT:ST.g(‘rT’,[
 {id:‘r1’,title:‘מים ואוכל לבעלי חיים’,area:‘animals’,pri:‘high’,rec:‘daily’,uid:’’},
@@ -161,8 +154,7 @@ projects:ST.g(‘projects’,[
 {id:‘p2’,title:‘📢 קהילה ברשתות’,color:’#6a4a8e’,status:‘active’,desc:‘הגדלת עוקבים’,taskIds:[‘r15’,‘r14’]},
 ]),
 };
-
-function save(){saveToCloud();}
+function save(){Object.keys(DB).forEach(k=>ST.s(k,DB[k]));}
 function at(){return[…DB.rT,…DB.oT];}
 function gu(id){return DB.users.find(u=>u.id===id);}
 function tdk(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
@@ -263,7 +255,7 @@ const pf=el(‘div’,{className:‘prog-fill’,style:{width:‘0%’}});
 const tw=el(‘div’,{className:‘tabs-w’});
 const hdr=el(‘div’,{className:‘app-hdr’},[
 el(‘div’,{className:‘hdr-top’},[
-el(‘div’,{},[el(‘div’,{className:‘brand’},[el(‘span’,{className:‘sync-dot’}),‘🌾 שירת האדמה’]),el(‘div’,{id:‘hdate’,style:{color:‘rgba(245,237,216,.45)’,fontSize:‘10px’,marginTop:‘1px’}},’’)]),
+el(‘div’,{},[el(‘div’,{className:‘brand’},‘🌾 שירת האדמה’),el(‘div’,{id:‘hdate’,style:{color:‘rgba(245,237,216,.45)’,fontSize:‘10px’,marginTop:‘1px’}},’’)]),
 el(‘div’,{className:‘u-pill’,onclick:()=>{if(confirm(`${ME.emoji} ${ME.name}\nנקודות: ${gp(ME.id)}⭐\n\nלצאת?`)){ME=null;localStorage.removeItem(‘sheirat_creds’);renderLogin();}}},[
 el(‘span’,{style:{fontSize:‘17px’}},ME.emoji),el(‘span’,{className:‘nm’},ME.name),el(‘span’,{className:‘pts’,id:‘hpts’},gp(ME.id)+‘⭐’)
 ])
@@ -782,7 +774,7 @@ main.appendChild(wc);
 // ADMIN
 function rAdmin(main){
 main.appendChild(el(‘div’,{style:{fontFamily:”‘Frank Ruhl Libre’,serif”,fontSize:‘16px’,fontWeight:900,marginBottom:‘12px’}},‘⚙️ ניהול משתמשים’));
-main.appendChild(card([el(‘div’,{className:‘card-t’,style:{color:‘var(–sage)’,fontSize:‘13px’}},‘🔑 כניסה אוטומטית’),el(‘div’,{style:{fontSize:‘12px’,color:‘var(–clay)’,lineHeight:1.6}},‘☁️ נתונים מסתנכרנים אוטומטית לכל המכשירים דרך Firebase. קוד מנהל: ‘),el(‘span’,{style:{fontFamily:‘monospace’,background:‘var(–mist)’,padding:‘2px 6px’,borderRadius:‘4px’}},PIN)],{background:’#e8f5e4’,border:‘1px solid rgba(106,154,90,.3)’}));
+main.appendChild(card([el(‘div’,{className:‘card-t’,style:{color:‘var(–sage)’,fontSize:‘13px’}},‘🔑 כניסה אוטומטית’),el(‘div’,{style:{fontSize:‘12px’,color:‘var(–clay)’,lineHeight:1.6}},`כשעובד נכנס בפעם הראשונה, הדפדפן שומר את הפרטים אוטומטית לכניסות הבאות. קוד מנהל: `),el(‘span’,{style:{fontFamily:‘monospace’,background:‘var(–mist)’,padding:‘2px 6px’,borderRadius:‘4px’}},PIN)],{background:’#e8f5e4’,border:‘1px solid rgba(106,154,90,.3)’}));
 DB.users.forEach(user=>{
 const uc=el(‘div’,{style:{background:‘var(–white)’,borderRadius:‘10px’,padding:‘12px’,marginBottom:‘8px’,boxShadow:‘0 2px 12px rgba(26,18,5,.12)’,display:‘flex’,alignItems:‘center’,gap:‘10px’}});
 uc.appendChild(el(‘div’,{style:{width:‘38px’,height:‘38px’,borderRadius:‘50%’,background:user.color+‘22’,display:‘flex’,alignItems:‘center’,justifyContent:‘center’,fontSize:‘18px’}},user.emoji));
@@ -808,23 +800,8 @@ ni.value=’’;ei.value=’’;pi.value=’’;toast(`${u.name} נוסף/ה ✓
 ac.appendChild(el(‘div’,{className:‘flab’},‘שם’));ac.appendChild(ni);ac.appendChild(el(‘div’,{className:‘flab’},‘מייל’));ac.appendChild(ei);ac.appendChild(el(‘div’,{className:‘flab’},‘סיסמה’));ac.appendChild(pi);ac.appendChild(el(‘div’,{className:‘flab’},‘תפקיד’));ac.appendChild(rl);ac.appendChild(el(‘div’,{className:‘flab’},‘אמוג׳י’));ac.appendChild(epg);ac.appendChild(sv);main.appendChild(ac);
 }
 
-// ============================================================
-// INIT — טוען מהענן
-// ============================================================
-function mergeDB(data){
-DB=Object.assign({},DEFAULT_DB,data||{});
-[‘users’,‘rT’,‘oT’,‘actLog’,‘hoursLog’,‘bonus’,‘inv’,‘equip’,‘projects’].forEach(k=>{if(!Array.isArray(DB[k]))DB[k]=JSON.parse(JSON.stringify(DEFAULT_DB[k]||[]));});
-[‘comps’,‘taskNotes’,‘journal’].forEach(k=>{if(typeof DB[k]!==‘object’||Array.isArray(DB[k]))DB[k]={};});
-}
-
-function initApp(){
-try{
-const bk=JSON.parse(localStorage.getItem(‘sha5_bk’)||‘null’);
-mergeDB(bk);
-}catch(e){mergeDB(null);}
+// START
 renderLogin();
-}
-initApp();
 </script>
 
 </body>
