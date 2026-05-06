@@ -833,44 +833,55 @@ ac.appendChild(el(‘div’,{className:‘flab’},‘שם’));ac.appendChild(n
 // ============================================================
 // INIT — טוען מהענן
 // ============================================================
-async function initApp(){
-document.getElementById(‘root’).innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#1a1205,#1e1008 40%,#0e1a0a)"><div style="text-align:center;color:#e8b84b"><div style="font-size:56px;margin-bottom:14px">🌾</div><div style="font-family:serif;font-size:22px;font-weight:900">שירת האדמה</div><div style="font-size:12px;opacity:.5;margin-top:10px">מתחבר לענן ☁️</div></div></div>`;
-if(DOC){
-try{
-const snap=await DOC.get();
-if(snap.exists){
-const data=snap.data();
+function mergeDB(data){
 DB=Object.assign({},DEFAULT_DB,data);
 [‘users’,‘rT’,‘oT’,‘actLog’,‘hoursLog’,‘bonus’,‘inv’,‘equip’,‘projects’].forEach(k=>{if(!Array.isArray(DB[k]))DB[k]=JSON.parse(JSON.stringify(DEFAULT_DB[k]||[]));});
 [‘comps’,‘taskNotes’,‘journal’].forEach(k=>{if(typeof DB[k]!==‘object’||Array.isArray(DB[k]))DB[k]={};});
-} else {
-DB=JSON.parse(JSON.stringify(DEFAULT_DB));
-await DOC.set(DB);
 }
-// סנכרון בזמן אמת
+
+function startSync(){
+if(!DOC)return;
 DOC.onSnapshot(snap=>{
 if(!snap.exists||!ME)return;
-Object.assign(DB,snap.data());
-[‘users’,‘rT’,‘oT’,‘actLog’,‘hoursLog’,‘bonus’,‘inv’,‘equip’,‘projects’].forEach(k=>{if(!Array.isArray(DB[k]))DB[k]=[];});
-[‘comps’,‘taskNotes’,‘journal’].forEach(k=>{if(typeof DB[k]!==‘object’||Array.isArray(DB[k]))DB[k]={};});
+mergeDB(snap.data());
 const main=document.getElementById(‘app-main’);
 if(main)setTimeout(()=>renderTab(main),200);
 const hp=document.getElementById(‘hpts’);if(hp)hp.textContent=gp(ME.id)+‘⭐’;
-},err=>console.warn(‘Snapshot:’,err));
-}catch(e){
-console.warn(‘Firebase error:’,e);
-try{const bk=JSON.parse(localStorage.getItem(‘sha5_bk’)||‘null’);DB=Object.assign({},DEFAULT_DB,bk||{});}
-catch(e2){DB=JSON.parse(JSON.stringify(DEFAULT_DB));}
-toast(‘⚠️ מצב לא מקוון’);
+},err=>console.warn(‘Sync:’,err));
 }
-} else {
-try{const bk=JSON.parse(localStorage.getItem(‘sha5_bk’)||‘null’);DB=Object.assign({},DEFAULT_DB,bk||{});}
-catch(e){DB=JSON.parse(JSON.stringify(DEFAULT_DB));}
-}
+
+function initApp(){
+// טעינה מהירה מ-localStorage
+try{
+const bk=JSON.parse(localStorage.getItem(‘sha5_bk’)||‘null’);
+mergeDB(bk||{});
+}catch(e){mergeDB({});}
+
+// הצג login מיד
 renderLogin();
+
+// חבר Firebase ברקע
+if(DOC){
+DOC.get().then(snap=>{
+if(snap.exists){
+mergeDB(snap.data());
+} else {
+DOC.set(JSON.parse(JSON.stringify(DB))).catch(e=>console.warn(e));
+}
+startSync();
+// עדכן אם כבר מחובר
+if(ME){
+const main=document.getElementById(‘app-main’);
+if(main)renderTab(main);
+}
+}).catch(e=>{
+console.warn(‘Firebase:’,e);
+toast(‘⚠️ מצב לא מקוון’);
+});
+}
 }
 initApp();
 </script>
 
 </body>
-</html>
+</html>הודבק
