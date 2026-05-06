@@ -91,11 +91,9 @@ textarea.finp{resize:vertical;line-height:1.5}
 
 <!-- Firebase SDK -->
 
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
 <script>
 // ─── FIREBASE INIT ───────────────────────────────────────────────
@@ -107,7 +105,7 @@ const firebaseConfig = {
   messagingSenderId: "564770382394",
   appId: "1:564770382394:web:74692bab93e4eea1a2cb03"
 };
-try{firebase.initializeApp(firebaseConfig);}catch(e){console.warn('FB:',e);}
+//no firebase
 const FAUTH = firebase.auth();
 const FDB = firebase.firestore();
 
