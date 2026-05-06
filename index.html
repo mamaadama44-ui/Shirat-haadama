@@ -107,8 +107,8 @@ const firebaseConfig = {
   appId: "1:564770382394:web:74692bab93e4eea1a2cb03"
 };
 //no firebase
-const FAUTH = null;//firebase.auth();
-const FDB = null;//firebase.firestore();
+const FAUTH = null;//null;
+const FDB = null;//null;
 
 // ─── CONSTANTS ───────────────────────────────────────────────────
 const EMOJIS=['🧑‍🌾','👨‍🌾','👩‍🌾','🐓','🌿','🌻','🦎','🐇','🌾','🥕','🍅','🌺'];
@@ -181,24 +181,18 @@ let DB = {
 };
 
 // ─── FIRESTORE SAVE FUNCTIONS ────────────────────────────────────
-function saveTasks()     { FDB.collection('farm').doc('tasks').set({rT:DB.rT,oT:DB.oT}).catch(e=>console.error('saveTasks',e)); }
-function saveInventory() { FDB.collection('farm').doc('inventory').set({inv:DB.inv,equip:DB.equip}).catch(e=>console.error('saveInventory',e)); }
-function saveLogs()      { FDB.collection('farm').doc('logs').set({actLog:DB.actLog,hoursLog:DB.hoursLog,bonus:DB.bonus}).catch(e=>console.error('saveLogs',e)); }
-function saveDaily()     { FDB.collection('farm').doc('daily').set({comps:DB.comps,taskNotes:DB.taskNotes,journal:DB.journal}).catch(e=>console.error('saveDaily',e)); }
-function saveProjects()  { FDB.collection('farm').doc('projects').set({projects:DB.projects}).catch(e=>console.error('saveProjects',e)); }
-function saveUserProfile(u) { const {pass,...p}=u; FDB.collection('users').doc(u.id).set(p).catch(e=>console.error('saveUser',e)); }
+function saveTasks()     { /*FDB removed*/; }
+function saveInventory() { /*FDB removed*/; }
+function saveLogs()      { /*FDB removed*/; }
+function saveDaily()     { /*FDB removed*/; }
+function saveProjects()  { /*FDB removed*/; }
+function saveUserProfile(u) { const {pass,...p}=u; /*FDB removed*/; }
 
 // ─── LOAD DATA FROM FIRESTORE ────────────────────────────────────
 async function loadData() {
   try {
     const [tasksSnap,invSnap,logsSnap,dailySnap,projSnap,usersSnap] = await Promise.all([
-      FDB.collection('farm').doc('tasks').get(),
-      FDB.collection('farm').doc('inventory').get(),
-      FDB.collection('farm').doc('logs').get(),
-      FDB.collection('farm').doc('daily').get(),
-      FDB.collection('farm').doc('projects').get(),
-      FDB.collection('users').get()
-    ]);
+      /*FDB removed*/;
     if(tasksSnap.exists){const d=tasksSnap.data();DB.rT=d.rT||DB.rT;DB.oT=d.oT||DB.oT;}
     else saveTasks();
     if(invSnap.exists){const d=invSnap.data();DB.inv=d.inv||DB.inv;DB.equip=d.equip||DB.equip;}
@@ -312,12 +306,12 @@ function renderReg(){
     if(pass.length<6){err.textContent='סיסמה קצרה (לפחות 6 תווים)';return;}
     regBtn.textContent='יוצר חשבון...';regBtn.disabled=true;err.textContent='';
     try{
-      const usersSnap=await FDB.collection('users').get();
+      const usersSnap=await /*FDB removed*/;
       const isFirst=usersSnap.empty;
       const cred=await FAUTH.createUserWithEmailAndPassword(email,pass);
       const uid=cred.user.uid;
       const u={id:uid,name,email,emoji:selE,color:COLS[usersSnap.size%COLS.length],role:isFirst?'מנהל':'עובד'};
-      await FDB.collection('users').doc(uid).set(u);
+      await /*FDB removed*/;
     }catch(e){
       console.error('reg',e);
       err.textContent=e.code==='auth/email-already-in-use'?'מייל כבר קיים':'שגיאה ביצירת חשבון';
@@ -892,7 +886,7 @@ function rAdmin(main){
       db.onclick=()=>{
         if(!confirm('למחוק?'))return;
         DB.users=DB.users.filter(u=>u.id!==user.id);
-        FDB.collection('users').doc(user.id).delete().catch(console.error);
+        /*FDB removed*/;
         toast('נמחק');rAdmin(main);
       };
       acts.appendChild(db);
@@ -908,7 +902,7 @@ FAUTH.onAuthStateChanged(async (firebaseUser) => {
   if (firebaseUser) {
     showLoading('טוען נתונים...');
     try {
-      const profileDoc = await FDB.collection('users').doc(firebaseUser.uid).get();
+      const profileDoc = await /*FDB removed*/;
       if (!profileDoc.exists) {
         await FAUTH.signOut();
         renderLogin();
