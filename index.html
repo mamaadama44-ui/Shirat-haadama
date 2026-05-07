@@ -82,13 +82,6 @@ textarea.finp{resize:vertical;line-height:1.5}
 <div id="toast" class="toast"></div>
 <div id="root"></div>
 <script>
-window.onerror=function(msg,src,line,col,err){
-  document.body.style.cssText='background:#fff;padding:20px';
-  document.body.innerHTML='<div style="background:red;color:#fff;padding:20px;border-radius:10px;font-family:monospace;font-size:14px"><b>JS ERROR:</b><br>'+msg+'<br>Line: '+line+'<br><br>'+(err?err.stack||'':'')+'</div>';
-  return false;
-};
-</script>
-<script>
 const PIN='1234',LS='sha5';
 const EMOJIS=['🧑‍🌾','👨‍🌾','👩‍🌾','🐓','🌿','🌻','🦎','🐇','🌾','🥕','🍅','🌺'];
 const COLS=['#C85A3A','#6a9a5a','#6b4a2a','#6a4a8e','#2a5a6e','#b8832a','#d4633a','#2a6e5a'];
