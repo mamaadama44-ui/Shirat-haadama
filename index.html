@@ -176,7 +176,7 @@ function el(tag,attrs={},kids=[]){
     else if(k==='value')e.value=v;
     else if(k!=='key')e.setAttribute(k,v);
   });
-  kids.flat().forEach(c=>{
+  (Array.isArray(kids)?kids.flat():[kids]).forEach(c=>{
     if(c==null||c===false||c===undefined)return;
     e.appendChild(typeof c==='string'||typeof c==='number'?document.createTextNode(String(c)):c);
   });
