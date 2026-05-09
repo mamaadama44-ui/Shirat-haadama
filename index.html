@@ -163,6 +163,8 @@ const DEFAULT_DATA = {
     {id:'e6',name:'לול עופות',icon:'🐓',cond:75,lastSvc:'2026-01-01',nextSvc:'2026-06-01',cost:150,notes:'תיקון גדר',area:'animals'},
   ],
   journal:{},
+  taskLog:{},
+  maintLog:[],
   projects:[
     {id:'p1',title:'🌱 סדנאות קיץ',color:'#6a9a5a',status:'active',desc:'סדנאות למשפחות',taskIds:['o1','o2']},
     {id:'p2',title:'📢 קהילה ברשתות',color:'#6a4a8e',status:'active',desc:'הגדלת עוקבים',taskIds:['r15','r14']},
@@ -388,29 +390,122 @@ function noteTask(tid){
   modal(html);
 }
 
-function mkRow(t,done,todayComps){
+function mkRow(t,done,todayComps,showTime){
   const assignedUser=t.uid?gu(t.uid):null;
   const whoDidIt=todayComps[t.id]?gu(todayComps[t.id]):null;
-  const noteCount=(DB.taskNotes[t.id]||[]).length;
-  const r=el('div',{className:'t-row',onclick:()=>toggle(t.id)},[
-    el('div',{style:{width:'22px',height:'22px',border:`2px solid ${done?PRI[t.pri]?.c||'var(--sage)':'var(--parch)'}`,borderRadius:'6px',background:done?(PRI[t.pri]?.c||'var(--sage)'):'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .2s'}},done?el('span',{style:{color:'#fff',fontSize:'13px'}},'✓'):''),
-    el('div',{style:{flex:1}},[
-      el('div',{style:{fontWeight:done?400:600,textDecoration:done?'line-through':'none',fontSize:'13px',color:done?'var(--clay)':'var(--earth)'}},t.title),
-      el('div',{style:{display:'flex',gap:'5px',flexWrap:'wrap',marginTop:'3px'}},[
-        AREAS[t.area]?el('span',{style:{fontSize:'10px',background:AREAS[t.area].c+'18',color:AREAS[t.area].c,padding:'1px 6px',borderRadius:'8px',fontWeight:600}},AREAS[t.area].l):'',
-        t.rec?el('span',{style:{fontSize:'10px',color:'var(--clay)'}},REC[t.rec]||''):'',
-        t.due?el('span',{style:{fontSize:'10px',color:new Date(t.due+'T00:00:00')<new Date()&&!t.done?'var(--red)':'var(--clay)'}},'עד '+fd(t.due)):'',
-        assignedUser?el('span',{style:{fontSize:'11px'}},assignedUser.emoji):'',
-        whoDidIt&&done?el('span',{className:'pts-bdg'},whoDidIt.emoji+' +'+(PRI[t.pri]?.pts||5)):'',
-        noteCount?el('span',{style:{fontSize:'10px',color:'var(--sage)',cursor:'pointer'},onclick:(e)=>{e.stopPropagation();noteTask(t.id);}},'📝 '+noteCount):'',
-      ])
-    ]),
-    el('div',{style:{display:'flex',gap:'5px',alignItems:'center'}},[
-      ME.role==='מנהל'?el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer',opacity:.5},onclick:(e)=>{e.stopPropagation();noteTask(t.id);}},'\uD83D\uDCDD'):'',
-      el('div',{style:{width:'8px',height:'8px',borderRadius:'50%',background:PRI[t.pri]?.c||'var(--clay)',flexShrink:0}},''),
-    ])
-  ]);
+  const notes=(DB.taskNotes||{})[t.id]||[];
+  const logs=(DB.taskLog||{})[t.id]||[];
+  const journalCount=notes.length+logs.length;
+  const schedStr=(t.scheduledDate&&showTime)?`${fd(t.scheduledDate)}${t.scheduledTime?' '+t.scheduledTime:''}`:'';
+
+  const r=el('div',{style:{display:'flex',alignItems:'flex-start',gap:'8px',padding:'10px 0',borderBottom:'1px solid var(--mist)'}});
+  const cb=el('div',{style:{width:'22px',height:'22px',border:`2px solid ${done?PRI[t.pri]?.c||'var(--sage)':'var(--parch)'}`,borderRadius:'6px',background:done?(PRI[t.pri]?.c||'var(--sage)'):'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:'2px',cursor:'pointer',transition:'all .2s'}},done?el('span',{style:{color:'#fff',fontSize:'13px'}},'✓'):'');
+  cb.onclick=()=>toggle(t.id);
+  r.appendChild(cb);
+  const info=el('div',{style:{flex:1,minWidth:0}});
+  info.appendChild(el('div',{style:{fontWeight:done?400:600,textDecoration:done?'line-through':'none',fontSize:'13px',color:done?'var(--clay)':'var(--earth)'}},t.title));
+  const tags=el('div',{style:{display:'flex',gap:'4px',flexWrap:'wrap',marginTop:'3px'}});
+  if(AREAS[t.area])tags.appendChild(el('span',{style:{fontSize:'10px',background:AREAS[t.area].c+'18',color:AREAS[t.area].c,padding:'1px 6px',borderRadius:'8px',fontWeight:600}},AREAS[t.area].l));
+  if(t.rec&&t.rec!=='specific')tags.appendChild(el('span',{style:{fontSize:'10px',color:'var(--clay)'}},t.rec==='daily'?'יומי':t.rec==='weekly'?'שבועי':'חודשי'));
+  if(schedStr)tags.appendChild(el('span',{style:{fontSize:'10px',color:'var(--straw)',fontWeight:600}},'🗓 '+schedStr));
+  else if(t.scheduledDate)tags.appendChild(el('span',{style:{fontSize:'10px',color:new Date(t.scheduledDate+'T00:00:00')<new Date()&&!done?'var(--red)':'var(--clay)'}},'עד '+fd(t.scheduledDate)));
+  else if(t.due)tags.appendChild(el('span',{style:{fontSize:'10px',color:new Date(t.due+'T00:00:00')<new Date()&&!done?'var(--red)':'var(--clay)'}},'עד '+fd(t.due)));
+  if(assignedUser)tags.appendChild(el('span',{style:{fontSize:'11px'}},assignedUser.emoji));
+  if(whoDidIt&&done)tags.appendChild(el('span',{className:'pts-bdg'},whoDidIt.emoji+' +'+(PRI[t.pri]?.pts||5)));
+  info.appendChild(tags);
+  r.appendChild(info);
+  const btns=el('div',{style:{display:'flex',gap:'2px',flexShrink:0}});
+  btns.appendChild(el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer',opacity:.7,padding:'2px 3px'},onclick:(e)=>{e.stopPropagation();openTaskJournal(t.id);}},'\uD83D\uDCD3'+(journalCount?' '+journalCount:'')));
+  if(ME.role==='מנהל'){
+    btns.appendChild(el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.6,padding:'2px 3px'},onclick:(e)=>{e.stopPropagation();editTask(t);}},'✏️'));
+    btns.appendChild(el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.4,padding:'2px 3px'},onclick:(e)=>{e.stopPropagation();if(!confirm('למחוק?'))return;DB.rT=DB.rT.filter(x=>x.id!==t.id);DB.oT=DB.oT.filter(x=>x.id!==t.id);save();renderTab();}},'\uD83D\uDDD1'));
+  }
+  r.appendChild(btns);
   return r;
+}
+
+function editTask(t){
+  const isRec=DB.rT.some(x=>x.id===t.id);
+  const bg=el('div',{className:'modal-bg'});
+  const box=el('div',{className:'modal'});
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'✏️ עריכת משימה'));
+  const titleInp=finp({value:t.title,placeholder:'כותרת'});
+  const areaS=fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),t.area||'animals');
+  const priS=fsel(Object.entries(PRI).map(([k,v])=>[k,v.l]),t.pri||'medium');
+  const uidS=fsel([['','ללא'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])],t.uid||'');
+  box.appendChild(el('div',{className:'flab'},'כותרת'));box.appendChild(titleInp);
+  box.appendChild(el('div',{className:'flab'},'אזור'));box.appendChild(areaS);
+  box.appendChild(el('div',{className:'flab'},'עדיפות'));box.appendChild(priS);
+  box.appendChild(el('div',{className:'flab'},'משויך ל'));box.appendChild(uidS);
+  const dr=el('div',{className:'fgrid'});
+  const dateInp=finp({type:'date',value:t.scheduledDate||t.due||''});
+  const timeInp=finp({type:'time',value:t.scheduledTime||'08:00'});
+  dr.appendChild(el('div',{},[el('div',{className:'flab'},'תאריך'),dateInp]));
+  dr.appendChild(el('div',{},[el('div',{className:'flab'},'שעה'),timeInp]));
+  box.appendChild(dr);
+  if(isRec){
+    const recS=fsel([['daily','יומי'],['weekly','שבועי'],['monthly','חודשי'],['specific','תאריך ספציפי']],t.rec||'daily');
+    box.appendChild(el('div',{className:'flab'},'תדירות'));box.appendChild(recS);
+    recS.addEventListener('change',e=>{dr.style.display=e.target.value==='specific'?'grid':'none';});
+    dr.style.display=t.rec==='specific'?'grid':'none';
+  }
+  box.appendChild(btn('שמור','var(--sage)',()=>{
+    t.title=titleInp.value.trim()||t.title;t.area=areaS.value;t.pri=priS.value;t.uid=uidS.value;
+    if(dateInp.value){t.scheduledDate=dateInp.value;t.due=dateInp.value;}
+    if(timeInp.value)t.scheduledTime=timeInp.value;
+    save();bg.remove();toast('נשמר \u2713');renderTab();
+  },{width:'100%',marginTop:'10px'}));
+  box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+  bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
+}
+
+function openTaskJournal(tid){
+  const t=at().find(x=>x.id===tid);if(!t)return;
+  if(!DB.taskNotes)DB.taskNotes={};if(!DB.taskLog)DB.taskLog={};
+  const notes=(DB.taskNotes[tid]||[]).map(n=>({...n,type:'note'}));
+  const logs=(DB.taskLog[tid]||[]).map(l=>({...l,type:'log'}));
+  const all=[...notes,...logs].sort((a,b)=>a.ts-b.ts);
+  const bg=el('div',{className:'modal-bg'});
+  const box=el('div',{className:'modal'});
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'10px'}},'\uD83D\uDCD3 '+t.title));
+  if(all.length){
+    const hist=el('div',{style:{maxHeight:'220px',overflowY:'auto',marginBottom:'12px'}});
+    all.forEach(item=>{
+      const u=gu(item.uid||item.userId);
+      hist.appendChild(el('div',{style:{background:item.type==='log'?'#e8f5e4':'var(--mist)',borderRadius:'8px',padding:'8px 10px',marginBottom:'6px',fontSize:'12px'}},[
+        el('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:'3px'}},[
+          el('span',{style:{fontWeight:600,color:item.type==='log'?'var(--sage)':'var(--clay)'}},
+            (u?u.name:'')+(item.type==='log'?' — ביצע':' — הערה')),
+          el('span',{style:{color:'var(--clay)',fontSize:'11px'}},new Date(item.ts).toLocaleDateString('he-IL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))
+        ]),
+        el('div',{style:{lineHeight:1.5}},item.text||item.detail||'')
+      ]));
+    });
+    box.appendChild(hist);
+  } else {
+    box.appendChild(el('div',{style:{color:'var(--clay)',fontSize:'12px',marginBottom:'10px',textAlign:'center'}},'אין היסטוריה עדיין'));
+  }
+  box.appendChild(el('div',{className:'flab'},'הוסף הערה'));
+  const ta=fta({placeholder:'מה קרה? הערה על הביצוע...',style:{minHeight:'70px'}});
+  box.appendChild(ta);
+  const typeS=fsel([['note','הערה כללית'],['log','דיווח ביצוע']],'note');
+  box.appendChild(el('div',{className:'flab'},'סוג'));box.appendChild(typeS);
+  box.appendChild(btn('שמור','var(--sage)',()=>{
+    const v=ta.value.trim();if(!v)return;
+    const entry={ts:Date.now(),uid:ME.id,name:ME.name,text:v};
+    if(typeS.value==='log'){
+      if(!DB.taskLog[tid])DB.taskLog[tid]=[];
+      DB.taskLog[tid].push({...entry,type:'log',userId:ME.id,userName:ME.name});
+    } else {
+      if(!DB.taskNotes[tid])DB.taskNotes[tid]=[];
+      DB.taskNotes[tid].push(entry);
+    }
+    save();bg.remove();toast('נשמר \u2713');renderTab();
+  },{width:'100%',marginTop:'6px'}));
+  box.appendChild(btn('סגור','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+  bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
 }
 
 function rTasks(main){
@@ -612,38 +707,81 @@ function editInv(item){
 
 function rMaintenance(main){
   main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'🔧 תחזוקת ציוד'));
+  const today=tdk();const todayComps=DB.comps[today]||{};
 
-  // Maintenance tasks from oT
+  // Open maintenance tasks
   const maintTasks=DB.oT.filter(t=>t.area==='maint'&&!t.done);
   if(maintTasks.length){
-    const today=tdk();const todayComps=DB.comps[today]||{};
-    main.appendChild(card([
+    const completedToday=maintTasks.filter(t=>todayComps[t.id]);
+    const pending=maintTasks.filter(t=>!todayComps[t.id]);
+    const c=card([
       el('div',{className:'card-t',style:{color:'var(--straw)'}},'📋 משימות תחזוקה פתוחות'),
-      ...maintTasks.map(t=>mkRow(t,todayComps[t.id]||false,todayComps))
-    ],{background:'#fff8ee',border:'1px solid #e8b84b44'}));
+      ...pending.map(t=>mkRow(t,false,todayComps,false)),
+      ...completedToday.map(t=>mkRow(t,true,todayComps,false)),
+    ],{background:'#fff8ee',border:'1px solid #e8b84b44'});
+    if(ME.role==='מנהל'&&completedToday.length){
+      c.appendChild(btn('📁 סגור '+completedToday.length+' ושמור בארכיון','var(--sage)',()=>{
+        const bg2=el('div',{className:'modal-bg'});
+        const box2=el('div',{className:'modal'});
+        box2.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'📁 סגירת משימות'));
+        const costInp=finp({type:'number',placeholder:'עלות כוללת (אופציונלי)',value:'0'});
+        const notesInp=fta({placeholder:'הערות על הביצוע...',style:{minHeight:'60px'}});
+        box2.appendChild(el('div',{className:'flab'},'עלות ₪'));box2.appendChild(costInp);
+        box2.appendChild(el('div',{className:'flab'},'הערות'));box2.appendChild(notesInp);
+        box2.appendChild(btn('אשר סגירה','var(--sage)',()=>{
+          if(!DB.maintLog)DB.maintLog=[];
+          completedToday.forEach(t=>{
+            DB.maintLog.push({id:'ml'+Date.now()+Math.random(),taskId:t.id,title:t.title,
+              closedAt:Date.now(),closedBy:ME.id,closedByName:ME.name,
+              cost:parseFloat(costInp.value)||0,notes:notesInp.value.trim()});
+            DB.oT=DB.oT.map(x=>x.id===t.id?{...x,done:true,doneAt:Date.now()}:x);
+          });
+          save();bg2.remove();toast(completedToday.length+' משימות נסגרו ✓');renderTab();
+        },{width:'100%',marginTop:'8px'}));
+        box2.appendChild(btn('ביטול','var(--mist)',()=>bg2.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+        bg2.appendChild(box2);bg2.addEventListener('click',e=>{if(e.target===bg2)bg2.remove();});
+        document.body.appendChild(bg2);
+      },{width:'100%',marginTop:'8px'}));
+    }
+    main.appendChild(c);
   }
 
-  // Equipment in nice rows
+  // Equipment needing attention
   const needsMaint=DB.equip.filter(e=>e.cond<70||new Date(e.nextSvc+'T00:00:00')<=new Date());
   if(needsMaint.length){
     main.appendChild(card([
       el('div',{className:'card-t',style:{color:'var(--red)'}},'⚠️ דורש טיפול דחוף'),
-      ...needsMaint.map(e=>equipRow(e,true))
+      ...needsMaint.map(e=>equipRow(e))
     ],{background:'#fff0ee',border:'1px solid #C85A3A33'}));
   }
-
   const ok=DB.equip.filter(e=>e.cond>=70&&new Date(e.nextSvc+'T00:00:00')>new Date());
   if(ok.length){
     main.appendChild(card([
       el('div',{className:'card-t',style:{color:'var(--sage)'}},'✅ ציוד תקין'),
-      ...ok.map(e=>equipRow(e,false))
+      ...ok.map(e=>equipRow(e))
     ]));
   }
 
+  // Archive
+  const archive=(DB.maintLog||[]).slice().reverse().slice(0,10);
+  if(archive.length){
+    main.appendChild(card([
+      el('div',{className:'card-t'},'📁 ארכיון תחזוקה'),
+      ...archive.map(log=>el('div',{style:{padding:'8px 0',borderBottom:'1px solid var(--mist)',fontSize:'12px'}},[
+        el('div',{style:{fontWeight:600}},log.title),
+        el('div',{style:{color:'var(--clay)',marginTop:'3px',display:'flex',gap:'10px',flexWrap:'wrap'}},[
+          el('span',{},new Date(log.closedAt).toLocaleDateString('he-IL')),
+          el('span',{},'בוצע: '+log.closedByName),
+          log.cost?el('span',{style:{color:'var(--straw)',fontWeight:700}},log.cost+'₪'):'',
+        ]),
+        log.notes?el('div',{style:{fontStyle:'italic',color:'var(--clay)',marginTop:'2px'}},log.notes):'',
+      ]))
+    ]));
+  }
   if(ME.role==='מנהל') main.appendChild(btn('➕ ציוד חדש','var(--sage)',()=>editEquip(null),{width:'100%',marginTop:'10px'}));
 }
 
-function equipRow(e,urgent){
+function equipRow(e){
   const condColor=e.cond<50?'var(--red)':e.cond<70?'var(--straw)':'var(--sage)';
   const area=AREAS[e.area];
   const r=el('div',{style:{display:'flex',alignItems:'center',gap:'12px',padding:'10px 0',borderBottom:'1px solid var(--mist)'}});
@@ -1020,6 +1158,29 @@ function rSummary(main){
     wc.appendChild(r);
   });
   main.appendChild(wc);
+
+
+  // Maintenance archive in summary
+  const maintMonth=(DB.maintLog||[]).filter(l=>{
+    const d=new Date(l.closedAt);
+    return d.getFullYear()===HY2&&d.getMonth()===HM2;
+  });
+  if(maintMonth.length){
+    const totalCost=maintMonth.reduce((s,l)=>s+(l.cost||0),0);
+    main.appendChild(card([
+      el('div',{className:'card-t'},'🔧 תחזוקה בוצעה — '+MONTHS[HM2]),
+      ...maintMonth.map(log=>el('div',{style:{padding:'6px 0',borderBottom:'1px solid var(--mist)',fontSize:'12px'}},[
+        el('div',{style:{fontWeight:600}},log.title),
+        el('div',{style:{color:'var(--clay)',marginTop:'2px',display:'flex',gap:'10px',flexWrap:'wrap'}},[
+          el('span',{},new Date(log.closedAt).toLocaleDateString('he-IL')),
+          el('span',{},'בוצע: '+log.closedByName),
+          log.cost?el('span',{style:{color:'var(--straw)',fontWeight:700}},log.cost+'₪'):'',
+          log.notes?el('span',{style:{fontStyle:'italic'}},log.notes):'',
+        ])
+      ])),
+      totalCost?el('div',{style:{marginTop:'8px',fontWeight:700,color:'var(--straw)',fontSize:'13px',borderTop:'1px solid var(--mist)',paddingTop:'8px'}},'סה"כ עלויות: '+totalCost+'₪'):'',
+    ]));
+  }
 
   // Export button for admin
   if(ME.role==='מנהל'){
