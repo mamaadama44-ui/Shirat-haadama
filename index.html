@@ -108,8 +108,8 @@ const PIN='1234';
 const EMOJIS=['🧑‍🌾','👨‍🌾','👩‍🌾','🐓','🌿','🌻','🦎','🐇','🌾','🥕','🍅','🌺'];
 const COLS=['#C85A3A','#6a9a5a','#6b4a2a','#6a4a8e','#2a5a6e','#b8832a','#d4633a','#2a6e5a'];
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const AREAS={animals:{l:'🐓 בעלי חיים',c:'#d4633a'},forest:{l:'🌲 יער',c:'#2a6e3a'},nursery:{l:'🌱 משתלה',c:'#4a8a5a'},field:{l:'🌾 שדה',c:'#6a9a5a'},marketing:{l:'📢 שיווק',c:'#6a4a8e'},shop:{l:'🛒 חנות',c:'#b8832a'},admin:{l:'📋 ניהול',c:'#4a6a8a'},maint:{l:'🔧 תחזוקה',c:'#6b4a2a'}};
-const INV_CATS={medicinal:{l:'🌿 מוצרי מרפא',c:'#4a8a5a'},animal_food:{l:'🐓 אוכל לחיות',c:'#d4633a'},equipment:{l:'🔧 ציוד',c:'#6b4a2a'},plants:{l:'🌱 צמחים וזרעים',c:'#6a9a5a'},produce:{l:'🍅 תוצרת',c:'#b84a2a'},materials:{l:'🪱 חומרים',c:'#b8832a'},water:{l:'💧 מים',c:'#2a5a6e'},other:{l:'📦 כללי',c:'#7a7a7a'}};
+const AREAS={animals:{l:'🐓 בעלי חיים',c:'#d4633a'},forest:{l:'🌲 יער',c:'#2a6e3a'},nursery:{l:'🌱 משתלה',c:'#4a8a5a'},workshops:{l:'🎭 סדנאות',c:'#6a4a8e'},maint:{l:'🔧 תחזוקה',c:'#6b4a2a'}};
+const INV_CATS={animals:{l:'🐓 לול - בעלי חיים',c:'#d4633a'},nursery:{l:'🌱 משתלה',c:'#4a8a5a'},workshops:{l:'🎭 סדנאות',c:'#6a4a8e'},forest:{l:'🌲 יער',c:'#2a6e3a'},equipment:{l:'🔧 ציוד כללי',c:'#6b4a2a'},other:{l:'📦 כללי',c:'#7a7a7a'}};
 const PRI={high:{l:'גבוהה',c:'#C85A3A',pts:10},medium:{l:'בינונית',c:'#b8832a',pts:5},low:{l:'נמוכה',c:'#6a9a5a',pts:2}};
 const REC={daily:'יומי',weekly:'שבועי',monthly:'חודשי'};
 const UNITS=["יח'","ק\"ג",'גרם','ליטר','שקים','שתילים','זוגות','בקבוקים'];
@@ -415,54 +415,132 @@ function mkRow(t,done,todayComps){
 
 function rTasks(main){
   const today=tdk();const todayComps=DB.comps[today]||{};
-  const areaOpts=[['all','הכל'],...Object.entries(AREAS).map(([k,v])=>[k,v.l])];
-  const userOpts=[['all','כולם'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])];
-  const filter=card([
+  // Filter tabs
+  const filterCard=card([
     el('div',{className:'chips'},[
       chip('הכל',STAB==='all','var(--earth)',()=>{STAB='all';renderTab();}),
-      chip('חוזרות',STAB==='recurring','var(--sage)',()=>{STAB='recurring';renderTab();}),
-      chip("חד-פעמיות",STAB==='once','var(--straw)',()=>{STAB='once';renderTab();}),
       chip('שלי',STAB==='mine','var(--red)',()=>{STAB='mine';renderTab();}),
+      ...Object.entries(AREAS).map(([k,v])=>chip(v.l,STAB===k,v.c,()=>{STAB=k;renderTab();})),
     ])
   ]);
-  main.appendChild(filter);
-  const today2=new Date();today2.setHours(0,0,0,0);
-  let tasks=[];
-  if(STAB==='recurring'||STAB==='all')tasks=[...tasks,...DB.rT];
-  if(STAB==='once'||STAB==='all')tasks=[...tasks,...DB.oT.filter(t=>!t.done||SHOWD)];
-  if(STAB==='mine')tasks=[...DB.rT,...DB.oT].filter(t=>t.uid===ME.id||todayComps[t.id]===ME.id);
-  if(AF!=='all')tasks=tasks.filter(t=>t.area===AF);
-  const doneTasks=tasks.filter(t=>todayComps[t.id]||(t.done));
-  const pendTasks=tasks.filter(t=>!todayComps[t.id]&&!t.done);
+  main.appendChild(filterCard);
+
+  // Progress
   const todayProg=DB.rT.length+DB.oT.filter(t=>!t.done).length;
   const doneCount=Object.keys(todayComps).length;
   main.appendChild(card([
     el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
-      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700}},`היום — ${new Date().toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'})}`),
+      el('div',{style:{fontWeight:700}},`היום — ${new Date().toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'})}`),
       el('div',{style:{fontSize:'13px',fontWeight:700,color:'var(--sage)'}},`${doneCount}/${todayProg} ✓`)
     ]),
     pbar(Math.round(doneCount/Math.max(todayProg,1)*100),'var(--sage)',8)
   ]));
-  if(pendTasks.length)main.appendChild(card([el('div',{className:'card-t'},'⏳ ממתינות'),...pendTasks.map(t=>mkRow(t,false,todayComps))]));
-  if(doneTasks.length)main.appendChild(card([el('div',{className:'card-t',style:{color:'var(--sage)'}},'✅ הושלמו'),...doneTasks.map(t=>mkRow(t,todayComps[t.id]||t.done,todayComps))]));
-  if(!tasks.length)main.appendChild(empty('אין משימות'));
-  if(ME.role==='מנהל'){
+
+  // Get tasks based on filter
+  let recurringTasks=[...DB.rT];
+  let onceTasks=[...DB.oT.filter(t=>!t.done)];
+  if(STAB==='mine'){
+    recurringTasks=recurringTasks.filter(t=>todayComps[t.id]===ME.id||t.uid===ME.id);
+    onceTasks=onceTasks.filter(t=>todayComps[t.id]===ME.id||t.uid===ME.id);
+  } else if(STAB!=='all'){
+    recurringTasks=recurringTasks.filter(t=>t.area===STAB);
+    onceTasks=onceTasks.filter(t=>t.area===STAB);
+  }
+
+  // Group recurring by area
+  const areaGroups={};
+  recurringTasks.forEach(t=>{
+    if(!areaGroups[t.area])areaGroups[t.area]=[];
+    areaGroups[t.area].push(t);
+  });
+
+  Object.entries(areaGroups).forEach(([areaKey,tasks])=>{
+    const area=AREAS[areaKey];
+    if(!area||!tasks.length)return;
+    const pending=tasks.filter(t=>!todayComps[t.id]);
+    const done=tasks.filter(t=>todayComps[t.id]);
+    const areaCard=card([
+      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700,color:area.c}},area.l),
+        el('span',{style:{fontSize:'11px',color:done.length===tasks.length?'var(--sage)':'var(--clay)',fontWeight:600}},`${done.length}/${tasks.length}`)
+      ]),
+      ...pending.map(t=>mkRow(t,false,todayComps)),
+      ...done.map(t=>mkRow(t,true,todayComps)),
+    ]);
+    main.appendChild(areaCard);
+  });
+
+  // One-time tasks
+  if(onceTasks.length){
     main.appendChild(card([
-      el('div',{className:'card-t'},'➕ משימה חד-פעמית'),
-      ...['title','area','pri','uid','due'].map(f=>{
-        if(f==='area')return el('div',{},[el('div',{className:'flab'},'אזור'),fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),'',(v)=>{window._ntArea=v;})]);
-        if(f==='pri')return el('div',{},[el('div',{className:'flab'},'עדיפות'),fsel(Object.entries(PRI).map(([k,v])=>[k,v.l]),'high',(v)=>{window._ntPri=v;})]);
-        if(f==='uid')return el('div',{},[el('div',{className:'flab'},'משויך ל'),fsel([['','ללא'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])],'',(v)=>{window._ntUid=v;})]);
-        if(f==='due')return el('div',{},[el('div',{className:'flab'},'תאריך יעד'),el('input',{id:'_ntDue',type:'date',className:'finp'})]);
-        return el('div',{},[el('div',{className:'flab'},'כותרת'),el('input',{id:'_ntTitle',className:'finp',placeholder:'תיאור המשימה'})]);
-      }),
-      btn('הוסף משימה','var(--red)',()=>{
-        const title=document.getElementById('_ntTitle')?.value.trim();
-        if(!title){toast('חסרה כותרת');return;}
-        const t={id:'o'+Date.now(),title,area:window._ntArea||'admin',pri:window._ntPri||'medium',uid:window._ntUid||'',due:document.getElementById('_ntDue')?.value||'',done:false,doneAt:null,createdBy:ME.id};
-        DB.oT.push(t);save();toast('משימה נוספה');renderTab();
-      },{width:'100%',marginTop:'8px'})
+      el('div',{className:'card-t'},'📌 משימות חד-פעמיות'),
+      ...onceTasks.map(t=>mkRow(t,todayComps[t.id]||t.done,todayComps))
     ]));
+  }
+
+  if(!recurringTasks.length&&!onceTasks.length) main.appendChild(empty('אין משימות'));
+
+  // Completed today
+  const allDone=Object.entries(todayComps);
+  if(allDone.length&&STAB==='all'){
+    main.appendChild(card([
+      el('div',{className:'card-t',style:{color:'var(--sage)'}},'✅ הושלמו היום'),
+      ...allDone.map(([tid])=>{
+        const t=at().find(x=>x.id===tid);
+        return t?mkRow(t,true,todayComps):'';
+      }).filter(Boolean)
+    ]));
+  }
+
+  // Manager: add tasks
+  if(ME.role==='מנהל'){
+    // Add recurring task
+    const rc=card([el('div',{className:'card-t'},'➕ הוסף משימה קבועה')]);
+    const rt=finp({placeholder:'תיאור המשימה'});
+    let rArea='animals',rPri='medium',rRec='daily',rUid='';
+    rc.appendChild(el('div',{className:'flab'},'כותרת'));rc.appendChild(rt);
+    rc.appendChild(el('div',{className:'flab'},'אזור'));
+    rc.appendChild(fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),'animals',v=>{rArea=v;}));
+    rc.appendChild(el('div',{className:'flab'},'עדיפות'));
+    rc.appendChild(fsel(Object.entries(PRI).map(([k,v])=>[k,v.l]),'medium',v=>{rPri=v;}));
+    rc.appendChild(el('div',{className:'flab'},'תדירות'));
+    rc.appendChild(fsel([['daily','יומי'],['weekly','שבועי'],['monthly','חודשי']],'daily',v=>{rRec=v;}));
+    rc.appendChild(el('div',{className:'flab'},'משויך ל'));
+    rc.appendChild(fsel([['','ללא'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])],'',v=>{rUid=v;}));
+    rc.appendChild(btn('הוסף משימה קבועה','var(--sage)',()=>{
+      const title=rt.value.trim();
+      if(!title){toast('חסרה כותרת');return;}
+      const t={id:'r'+Date.now(),title,area:rArea,pri:rPri,rec:rRec,uid:rUid,createdBy:ME.id};
+      // If maintenance - also add to equip view
+      DB.rT.push(t);
+      save();toast('משימה קבועה נוספה ✓');renderTab();
+    },{width:'100%',marginTop:'8px'}));
+    main.appendChild(rc);
+
+    // Add one-time task
+    const oc=card([el('div',{className:'card-t'},'➕ הוסף משימה חד-פעמית')]);
+    const ot=finp({placeholder:'תיאור המשימה'});
+    let oArea='animals',oPri='medium',oUid='',oDue='';
+    oc.appendChild(el('div',{className:'flab'},'כותרת'));oc.appendChild(ot);
+    oc.appendChild(el('div',{className:'flab'},'אזור'));
+    oc.appendChild(fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),'animals',v=>{oArea=v;}));
+    oc.appendChild(el('div',{className:'flab'},'עדיפות'));
+    oc.appendChild(fsel(Object.entries(PRI).map(([k,v])=>[k,v.l]),'medium',v=>{oPri=v;}));
+    oc.appendChild(el('div',{className:'flab'},'משויך ל'));
+    oc.appendChild(fsel([['','ללא'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])],'',v=>{oUid=v;}));
+    oc.appendChild(el('div',{className:'flab'},'תאריך יעד'));
+    const odInput=finp({type:'date'});oc.appendChild(odInput);
+    oc.appendChild(btn('הוסף משימה','var(--red)',()=>{
+      const title=ot.value.trim();
+      if(!title){toast('חסרה כותרת');return;}
+      const t={id:'o'+Date.now(),title,area:oArea,pri:oPri,uid:oUid,due:odInput.value||'',done:false,doneAt:null,createdBy:ME.id};
+      if(oArea==='maint'){
+        // Add as maintenance task and switch tab
+        DB.oT.push(t);save();toast('נוסף לתחזוקה ✓');TAB='maint';renderTab();return;
+      }
+      DB.oT.push(t);save();toast('משימה נוספה ✓');renderTab();
+    },{width:'100%',marginTop:'8px'}));
+    main.appendChild(oc);
   }
 }
 
@@ -534,29 +612,58 @@ function editInv(item){
 
 function rMaintenance(main){
   main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'🔧 תחזוקת ציוד'));
-  DB.equip.forEach(e=>{
-    const needsM=e.cond<70||new Date(e.nextSvc+'T00:00:00')<=new Date();
-    const c=el('div',{className:'h-card'},[
-      el('div',{className:'h-head',style:{background:needsM?'#fff8ee':''}},[
-        el('span',{style:{fontSize:'24px'}},e.icon),
-        el('div',{style:{flex:1}},[
-          el('div',{style:{fontWeight:700,fontSize:'14px'}},e.name),
-          el('div',{style:{fontSize:'11px',color:AREAS[e.area]?.c||'var(--clay)'}},AREAS[e.area]?.l||'')
-        ]),
-        needsM?el('span',{style:{color:'var(--red)',fontWeight:700}},'⚠️'):'',
-        ME.role==='מנהל'?el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 9px',fontSize:'11px',fontWeight:600,cursor:'pointer'},onclick:()=>editEquip(e)},'ערוך'):'',
-      ]),
-      el('div',{className:'h-body'},[
-        pbar(e.cond,e.cond<50?'var(--red)':e.cond<70?'var(--straw)':'var(--sage)',8),
-        el('div',{className:'h-row'},[el('span',{style:{color:'var(--clay)',flex:1}},'מצב'),el('span',{style:{fontWeight:700,color:e.cond<50?'var(--red)':e.cond<70?'var(--straw)':'var(--sage)'}},e.cond+'%')]),
-        el('div',{className:'h-row'},[el('span',{style:{color:'var(--clay)',flex:1}},'טיפול אחרון'),el('span',{},fd(e.lastSvc))]),
-        el('div',{className:'h-row'},[el('span',{style:{color:'var(--clay)',flex:1}},'טיפול הבא'),el('span',{style:{color:needsM?'var(--red)':'var(--earth)'}},fd(e.nextSvc))]),
-        e.notes?el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'6px',fontStyle:'italic'}},e.notes):'',
-      ])
-    ]);
-    main.appendChild(c);
-  });
+
+  // Maintenance tasks from oT
+  const maintTasks=DB.oT.filter(t=>t.area==='maint'&&!t.done);
+  if(maintTasks.length){
+    const today=tdk();const todayComps=DB.comps[today]||{};
+    main.appendChild(card([
+      el('div',{className:'card-t',style:{color:'var(--straw)'}},'📋 משימות תחזוקה פתוחות'),
+      ...maintTasks.map(t=>mkRow(t,todayComps[t.id]||false,todayComps))
+    ],{background:'#fff8ee',border:'1px solid #e8b84b44'}));
+  }
+
+  // Equipment in nice rows
+  const needsMaint=DB.equip.filter(e=>e.cond<70||new Date(e.nextSvc+'T00:00:00')<=new Date());
+  if(needsMaint.length){
+    main.appendChild(card([
+      el('div',{className:'card-t',style:{color:'var(--red)'}},'⚠️ דורש טיפול דחוף'),
+      ...needsMaint.map(e=>equipRow(e,true))
+    ],{background:'#fff0ee',border:'1px solid #C85A3A33'}));
+  }
+
+  const ok=DB.equip.filter(e=>e.cond>=70&&new Date(e.nextSvc+'T00:00:00')>new Date());
+  if(ok.length){
+    main.appendChild(card([
+      el('div',{className:'card-t',style:{color:'var(--sage)'}},'✅ ציוד תקין'),
+      ...ok.map(e=>equipRow(e,false))
+    ]));
+  }
+
   if(ME.role==='מנהל') main.appendChild(btn('➕ ציוד חדש','var(--sage)',()=>editEquip(null),{width:'100%',marginTop:'10px'}));
+}
+
+function equipRow(e,urgent){
+  const condColor=e.cond<50?'var(--red)':e.cond<70?'var(--straw)':'var(--sage)';
+  const area=AREAS[e.area];
+  const r=el('div',{style:{display:'flex',alignItems:'center',gap:'12px',padding:'10px 0',borderBottom:'1px solid var(--mist)'}});
+  r.appendChild(el('div',{style:{fontSize:'24px',width:'36px',textAlign:'center',flexShrink:0}},e.icon));
+  const info=el('div',{style:{flex:1}});
+  info.appendChild(el('div',{style:{fontWeight:700,fontSize:'13px'}},e.name));
+  info.appendChild(el('div',{style:{display:'flex',gap:'6px',marginTop:'2px',flexWrap:'wrap'}},[
+    area?el('span',{style:{fontSize:'10px',color:area.c,fontWeight:600}},area.l):'',
+    el('span',{style:{fontSize:'10px',color:'var(--clay)'}},`טיפול הבא: ${fd(e.nextSvc)}`),
+  ]));
+  info.appendChild(el('div',{style:{marginTop:'4px'}},pbar(e.cond,condColor,5)));
+  r.appendChild(info);
+  r.appendChild(el('div',{style:{textAlign:'center',minWidth:'36px'}},[
+    el('div',{style:{fontWeight:700,fontSize:'14px',color:condColor}},e.cond+'%'),
+  ]));
+  if(ME.role==='מنهل'){
+    const eb=el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 8px',fontSize:'11px',cursor:'pointer'},onclick:()=>editEquip(e)},'ערוך');
+    r.appendChild(eb);
+  }
+  return r;
 }
 
 function editEquip(e){
@@ -687,43 +794,143 @@ function rScore(main){
 
 function rTeam(main){
   main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'👥 הצוות'));
+
+  if(!DB.users.length){main.appendChild(empty('אין עובדים עדיין'));return;}
+
+  const today=tdk();
   DB.users.forEach(u=>{
     const pts=gp(u.id);
-    const today=tdk();
     const todayDone=Object.entries(DB.comps[today]||{}).filter(([,v])=>v===u.id).length;
+    const mPrefix=`${HY}-${String(HM+1).padStart(2,'0')}`;
+    const monthHrs=(DB.hoursLog||[]).filter(h=>h.uid===u.id&&h.date.startsWith(mPrefix)).reduce((s,h)=>s+ch(h.start,h.end),0);
     main.appendChild(card([
       el('div',{style:{display:'flex',gap:'12px',alignItems:'center'}},[
-        el('div',{style:{width:'44px',height:'44px',borderRadius:'50%',background:u.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'22px'}},u.emoji),
+        el('div',{style:{width:'48px',height:'48px',borderRadius:'50%',background:u.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'24px',flexShrink:0}},u.emoji),
         el('div',{style:{flex:1}},[
           el('div',{style:{fontWeight:700,fontSize:'15px'}},u.name),
-          el('div',{style:{fontSize:'12px',color:u.color,fontWeight:600}},u.role),
-          el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px'}},`${pts}\u2605 · ${todayDone} משימות היום`)
+          el('div',{style:{fontSize:'12px',color:u.color,fontWeight:600,marginBottom:'4px'}},u.role),
+          el('div',{style:{display:'flex',gap:'10px',fontSize:'11px',color:'var(--clay)'}},[
+            el('span',{},pts+'★ נקודות'),
+            el('span',{},todayDone+' משימות היום'),
+            el('span',{},monthHrs.toFixed(1)+" ש' החודש"),
+          ]),
         ]),
-        pbar(Math.min(pts/100*100,100),u.color,40)
-      ])
+      ]),
+      el('div',{style:{marginTop:'10px'}},pbar(Math.min(pts/50*100,100),u.color,6)),
     ]));
   });
+
+  if(ME.role==='מנהל'){
+    main.appendChild(card([
+      el('div',{style:{fontSize:'12px',color:'var(--clay)',textAlign:'center'}},'להוספת עובדים חדשים — עבור לטאב '),
+      el('div',{style:{textAlign:'center',marginTop:'6px'}},btn('⚙️ ניהול','var(--earth)',()=>{TAB='admin';renderTab();},{fontSize:'12px'}))
+    ],{background:'var(--mist)'}));
+  }
 }
 
 function rProjects(main){
   main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'🗂 פרויקטים'));
-  if(!DB.projects.length){main.appendChild(empty('אין פרויקטים'));return;}
+
   DB.projects.forEach(p=>{
     const tasks=p.taskIds.map(id=>at().find(t=>t.id===id)).filter(Boolean);
     const today=tdk();
     const done=tasks.filter(t=>DB.comps[today]?.[t.id]||t.done).length;
     const pc=card([
       el('div',{style:{display:'flex',gap:'8px',alignItems:'center',marginBottom:'8px'}},[
-        el('div',{style:{width:'12px',height:'12px',borderRadius:'3px',background:p.color,flexShrink:0}},''),
+        el('div',{style:{width:'14px',height:'14px',borderRadius:'3px',background:p.color,flexShrink:0}},''),
         el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,flex:1}},p.title),
-        el('span',{style:{fontSize:'11px',background:p.color+'22',color:p.color,padding:'2px 8px',borderRadius:'10px',fontWeight:600}},p.status==='active'?'פעיל':'הושלם')
+        el('span',{style:{fontSize:'11px',background:p.status==='active'?'#e8f5e4':'var(--mist)',color:p.status==='active'?'var(--sage)':'var(--clay)',padding:'2px 8px',borderRadius:'10px',fontWeight:600}},p.status==='active'?'פעיל':'הושלם'),
+        ME.role==='מנהל'?el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer',opacity:.6},onclick:()=>editProject(p)},'✏️'):'',
+        ME.role==='מנהל'?el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer',opacity:.5},onclick:()=>{if(confirm('למחוק פרויקט?')){DB.projects=DB.projects.filter(x=>x.id!==p.id);save();renderTab();}}},'🗑'):'',
       ]),
       p.desc?el('div',{style:{fontSize:'12px',color:'var(--clay)',marginBottom:'8px'}},p.desc):'',
-      pbar(Math.round(done/Math.max(tasks.length,1)*100),p.color,6),
-      el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'4px'}},`${done}/${tasks.length} משימות`)
+      tasks.length?el('div',{},[
+        pbar(Math.round(done/Math.max(tasks.length,1)*100),p.color,6),
+        el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'4px'}},`${done}/${tasks.length} משימות`)
+      ]):el('div',{style:{fontSize:'12px',color:'var(--clay)'}},'אין משימות משויכות'),
+      tasks.length?el('div',{style:{marginTop:'8px',display:'flex',flexDirection:'column',gap:'4px'}},[
+        ...tasks.slice(0,3).map(t=>el('div',{style:{fontSize:'12px',display:'flex',gap:'6px',alignItems:'center'}},[
+          el('span',{style:{color:DB.comps[today]?.[t.id]||t.done?'var(--sage)':'var(--clay)'}},DB.comps[today]?.[t.id]||t.done?'✓':'○'),
+          el('span',{},t.title)
+        ])),
+        tasks.length>3?el('div',{style:{fontSize:'11px',color:'var(--clay)'}},'ועוד '+(tasks.length-3)+' משימות...'):'',
+      ]):'',
     ]);
     main.appendChild(pc);
   });
+
+  if(!DB.projects.length) main.appendChild(empty('אין פרויקטים'));
+
+  if(ME.role==='מנהל'){
+    main.appendChild(btn('➕ פרויקט חדש','var(--sage)',()=>editProject(null),{width:'100%',marginTop:'8px'}));
+  }
+}
+
+function editProject(p){
+  const isNew=!p;
+  if(isNew)p={id:'p'+Date.now(),title:'',color:'#6a9a5a',status:'active',desc:'',taskIds:[]};
+  const colors=['#6a9a5a','#C85A3A','#6a4a8e','#2a6e3a','#b8832a','#2a5a6e','#d4633a','#6b4a2a'];
+  let selColor=p.color;
+  let selStatus=p.status;
+  let selTaskIds=[...p.taskIds];
+
+  const titleInp=finp({placeholder:'שם הפרויקט',value:p.title});
+  const descInp=fta({placeholder:'תיאור קצר',value:p.desc||''});
+  descInp.style.minHeight='60px';
+
+  const colorPicker=el('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',margin:'4px 0'}});
+  colors.forEach(c=>{
+    const cb=el('div',{style:{width:'24px',height:'24px',borderRadius:'50%',background:c,cursor:'pointer',border:c===selColor?'3px solid var(--earth)':'3px solid transparent'}});
+    cb.onclick=()=>{selColor=c;colorPicker.querySelectorAll('div').forEach(x=>x.style.border='3px solid transparent');cb.style.border='3px solid var(--earth)';};
+    colorPicker.appendChild(cb);
+  });
+
+  const statusSel=fsel([['active','פעיל'],['done','הושלם']],selStatus,v=>{selStatus=v;});
+
+  // Task selector
+  const taskList=el('div',{style:{maxHeight:'150px',overflowY:'auto',border:'1px solid var(--parch)',borderRadius:'8px',padding:'4px'}});
+  const renderTaskList=()=>{
+    taskList.innerHTML='';
+    at().forEach(t=>{
+      const checked=selTaskIds.includes(t.id);
+      const row=el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'5px',cursor:'pointer',borderRadius:'6px',background:checked?'rgba(106,154,90,.1)':'transparent'}});
+      row.onclick=()=>{
+        if(selTaskIds.includes(t.id))selTaskIds=selTaskIds.filter(x=>x!==t.id);
+        else selTaskIds.push(t.id);
+        renderTaskList();
+      };
+      row.appendChild(el('span',{style:{color:checked?'var(--sage)':'var(--clay)',fontSize:'14px'}},checked?'☑':'☐'));
+      row.appendChild(el('span',{style:{fontSize:'12px',flex:1}},t.title));
+      const area=AREAS[t.area];
+      if(area)row.appendChild(el('span',{style:{fontSize:'10px',color:area.c}},area.l));
+      taskList.appendChild(row);
+    });
+  };
+  renderTaskList();
+
+  const bg=el('div',{className:'modal-bg'});
+  const box=el('div',{className:'modal'});
+
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:700,marginBottom:'14px'}},isNew?'פרויקט חדש':'עריכת פרויקט'));
+  box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(titleInp);
+  box.appendChild(el('div',{className:'flab'},'תיאור'));box.appendChild(descInp);
+  box.appendChild(el('div',{className:'flab'},'צבע'));box.appendChild(colorPicker);
+  box.appendChild(el('div',{className:'flab'},'סטטוס'));box.appendChild(statusSel);
+  box.appendChild(el('div',{className:'flab'},'משימות משויכות'));box.appendChild(taskList);
+
+  box.appendChild(btn('שמור פרויקט','var(--sage)',()=>{
+    const title=titleInp.value.trim();
+    if(!title){toast('חסר שם');return;}
+    p.title=title;p.color=selColor;p.status=selStatus;p.desc=descInp.value.trim();p.taskIds=selTaskIds;
+    if(isNew)DB.projects.push(p);
+    save();bg.remove();toast('פרויקט נשמר ✓');renderTab();
+  },{width:'100%',marginTop:'12px'}));
+
+  box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+
+  bg.appendChild(box);
+  bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
 }
 
 function rJournal(main){
@@ -897,12 +1104,19 @@ async function init(){
     document.getElementById('root').innerHTML='<div style="padding:20px;text-align:center;color:red">שגיאה בחיבור ל-Firebase. בדוק חיבור אינטרנט.</div>';
     return;
   }
-  // If no users at all, create first admin
   if(DB.users.length===0){
     renderFirstAdmin();
-  } else {
-    renderLogin();
+    return;
   }
+  // Check saved credentials against FIREBASE data (not cache)
+  let creds=null;
+  try{creds=JSON.parse(localStorage.getItem('sheirat_creds')||'null');}catch{}
+  if(creds){
+    const u=DB.users.find(u=>u.email===creds.email&&u.pass===creds.pass);
+    if(u){ME=u;renderApp();return;}
+    localStorage.removeItem('sheirat_creds');
+  }
+  renderLogin();
 }
 
 function renderFirstAdmin(){
