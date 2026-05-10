@@ -1596,8 +1596,7 @@ async function sendDailyDigest(){
     
     if(!allMyTasks.length&&ME.id!==u.id) return; // skip users with no tasks (except admin gets all)
     
-    const taskList=todayTasks.map(t=>`• ${t.title} [${AREAS[t.area]?.l||t.area}]${t.scheduledTime?' בשעה '+t.scheduledTime:''}`).join('
-');
+    const taskList=todayTasks.map(t=>'• '+t.title+' ['+( AREAS[t.area]?.l||t.area)+']'+(t.scheduledTime?' בשעה '+t.scheduledTime:'')).join('\n');
     
     const dateStr=new Date().toLocaleDateString('he-IL');
     let msg='';
@@ -1631,8 +1630,7 @@ async function sendReminder(task, user){
   if(area) lines.push('📍 '+area.l);
   if(task.scheduledDate) lines.push('📅 '+fd(task.scheduledDate)+(task.scheduledTime?' בשעה '+task.scheduledTime:''));
   lines.push('','אנא וודא שהמשימה מבוצעת בזמן.','','🌾 שירת האדמה');
-  const msg=lines.join('
-');
+  const msg=lines.join('\n');
   return sendEmail(user.email, user.name, 'תזכורת: '+task.title, msg);
 }
 
