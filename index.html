@@ -1208,7 +1208,8 @@ function rJournal(main){
     const events=[];
     // Scheduled tasks
     [...DB.rT,...DB.oT].forEach(t=>{
-      if(t.scheduledDate===dateStr)events.push({type:'task',t,color:AREAS[t.area]?.c||'var(--clay)'});
+      const tDate=t.scheduledDate||t.due||'';
+      if(tDate===dateStr&&!t.done)events.push({type:'task',t,color:AREAS[t.area]?.c||'var(--clay)'});
     });
     // Projects spanning this date
     DB.projects.forEach(p=>{
