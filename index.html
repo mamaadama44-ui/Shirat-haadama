@@ -1534,27 +1534,19 @@ function rAdmin(main){
     if(!u.email){toast('לעובד זה אין מייל במערכת');return;}
     const t=remTask?at().find(x=>x.id===remTask):null;
     const extra=msgInp.value.trim();
-    let msg='';
+    const msgLines=['שלום '+u.name+',',''];
     if(t){
-      const area=AREAS[t.area];
-      msg=`שלום ${u.name},
-
-תזכורת למשימה:
-📋 ${t.title}
-${area?'📍 '+area.l+'
-':''}${t.scheduledDate?'📅 '+fd(t.scheduledDate)+(t.scheduledTime?' בשעה '+t.scheduledTime:'')+'
-':''}`;
+      const tArea=AREAS[t.area];
+      msgLines.push('תזכורת למשימה:','📋 '+t.title);
+      if(tArea)msgLines.push('📍 '+tArea.l);
+      if(t.scheduledDate)msgLines.push('📅 '+fd(t.scheduledDate)+(t.scheduledTime?' בשעה '+t.scheduledTime:''));
     } else {
-      msg=`שלום ${u.name},
-
-תזכורת מהמנהל:
-`;
+      msgLines.push('תזכורת מהמנהל:');
     }
-    if(extra)msg+='
-'+extra+'
-';
-    msg+='
-🌾 שירת האדמה';
+    if(extra){msgLines.push('');msgLines.push(extra);}
+    msgLines.push('','🌾 שירת האדמה');
+    const msg=msgLines.join('
+');
     toast('שולח...',3000);
     const ok=await sendEmail(u.email,u.name,t?'תזכורת: '+t.title:'תזכורת מהחווה',msg);
     toast(ok?'תזכורת נשלחה ✓':'שגיאה — בדוק מייל העובד');
@@ -1608,30 +1600,21 @@ async function sendDailyDigest(){
     const taskList=todayTasks.map(t=>`• ${t.title} [${AREAS[t.area]?.l||t.area}]${t.scheduledTime?' בשעה '+t.scheduledTime:''}`).join('
 ');
     
-    const msg=u.role==='מנהל'
-      ? `שלום ${u.name},
-
-סיכום משימות להיום — ${new Date().toLocaleDateString('he-IL')}:
-
-${todayTasks.slice(0,15).map(t=>{const w=t.uid?gu(t.uid):null;return '• '+t.title+(w?' — '+w.name:'');}).join('
-')}
-
-סה"כ: ${todayTasks.length} משימות`
-      : allMyTasks.length
-        ? `שלום ${u.name},
-
-המשימות שלך להיום — ${new Date().toLocaleDateString('he-IL')}:
-
-${allMyTasks.map(t=>'• '+t.title+(t.scheduledTime?' בשעה '+t.scheduledTime:'')).join('
-')}
-
-בהצלחה! 🌾`
-        : `שלום ${u.name},
-
-אין לך משימות מוגדרות להיום — ${new Date().toLocaleDateString('he-IL')}.
-
-יום טוב! 🌾`;
-    
+    const dateStr=new Date().toLocaleDateString('he-IL');
+    let msg='';
+    if(u.role==='מנהל'){
+      const lines=['שלום '+u.name+',','','סיכום משימות להיום — '+dateStr+':',''];
+      todayTasks.slice(0,15).forEach(t=>{const w=t.uid?gu(t.uid):null;lines.push('• '+t.title+(w?' — '+w.name:''));});
+      lines.push('','סהכ: '+todayTasks.length+' משימות');
+      msg=lines.join('\n');
+    } else if(allMyTasks.length){
+      const lines=['שלום '+u.name+',','','המשימות שלך להיום — '+dateStr+':',''];
+      allMyTasks.forEach(t=>lines.push('• '+t.title+(t.scheduledTime?' בשעה '+t.scheduledTime:'')));
+      lines.push('','בהצלחה! 🌾');
+      msg=lines.join('\n');
+    } else {
+      msg='שלום '+u.name+',\n\nאין לך משימות מוגדרות להיום — '+dateStr+'.\n\nיום טוב! 🌾';
+    }
     return sendEmail(u.email, u.name, 'סיכום משימות יומי', msg);
   });
   
@@ -1645,16 +1628,12 @@ ${allMyTasks.map(t=>'• '+t.title+(t.scheduledTime?' בשעה '+t.scheduledTime
 async function sendReminder(task, user){
   if(!user||!user.email) return false;
   const area=AREAS[task.area];
-  const msg=`שלום ${user.name},
-
-תזכורת למשימה:
-📋 ${task.title}
-${area?'📍 '+area.l+'
-':''}${task.scheduledDate?'📅 '+fd(task.scheduledDate)+(task.scheduledTime?' בשעה '+task.scheduledTime:'')+'
-':''}
-אנא וודא שהמשימה מבוצעת בזמן.
-
-🌾 שירת האדמה`;
+  const lines=['שלום '+user.name+',','','תזכורת למשימה:','📋 '+task.title];
+  if(area) lines.push('📍 '+area.l);
+  if(task.scheduledDate) lines.push('📅 '+fd(task.scheduledDate)+(task.scheduledTime?' בשעה '+task.scheduledTime:''));
+  lines.push('','אנא וודא שהמשימה מבוצעת בזמן.','','🌾 שירת האדמה');
+  const msg=lines.join('
+');
   return sendEmail(user.email, user.name, 'תזכורת: '+task.title, msg);
 }
 
