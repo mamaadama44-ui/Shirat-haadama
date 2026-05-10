@@ -146,19 +146,19 @@ const DEFAULT_DATA = {
   ],
   comps:{},taskNotes:{},actLog:[],hoursLog:[],bonus:{},
   inv:[
-    {id:'i1',name:'שמן לבנדר',icon:'💜',qty:5,unit:'בקבוקים',minQty:2,invCat:'medicinal',desc:'לסדנאות'},
-    {id:'i2',name:'תה צמחים',icon:'🍵',qty:20,unit:"ק\"ג",minQty:5,invCat:'medicinal',desc:'מוצר מרפא'},
-    {id:'i3',name:'מזון מטילות',icon:'🌾',qty:1.5,unit:"ק\"ג",minQty:5,invCat:'animal_food',desc:'לעופות'},
-    {id:'i4',name:'מזון אפרוחים',icon:'🐣',qty:0.3,unit:"ק\"ג",minQty:2,invCat:'animal_food',desc:'לאפרוחים'},
-    {id:'i5',name:'מזון כבשים',icon:'🐑',qty:10,unit:"ק\"ג",minQty:5,invCat:'animal_food',desc:'כבשים'},
+    {id:'i1',name:'שמן לבנדר',icon:'💜',qty:5,unit:'בקבוקים',minQty:2,invCat:'workshops',desc:'לסדנאות'},
+    {id:'i2',name:'תה צמחים',icon:'🍵',qty:20,unit:"ק\"ג",minQty:5,invCat:'workshops',desc:'מוצר מרפא'},
+    {id:'i3',name:'מזון מטילות',icon:'🌾',qty:1.5,unit:"ק\"ג",minQty:5,invCat:'animals',desc:'לעופות'},
+    {id:'i4',name:'מזון אפרוחים',icon:'🐣',qty:0.3,unit:"ק\"ג",minQty:2,invCat:'animals',desc:'לאפרוחים'},
+    {id:'i5',name:'מזון כבשים',icon:'🐑',qty:10,unit:"ק\"ג",minQty:5,invCat:'animals',desc:'כבשים'},
     {id:'i6',name:'כפפות עבודה',icon:'🧤',qty:8,unit:'זוגות',minQty:4,invCat:'equipment',desc:'ציוד'},
-    {id:'i7',name:'זרעי עגבניות',icon:'🌱',qty:200,unit:"יח'",minQty:100,invCat:'plants',desc:'לחממה'},
-    {id:'i8',name:'שתילי מלפפון',icon:'🥒',qty:30,unit:'שתילים',minQty:20,invCat:'plants',desc:'לשדה'},
-    {id:'i9',name:'ביצים טריות',icon:'🥚',qty:48,unit:"יח'",minQty:20,invCat:'produce',desc:'מהמטילות'},
-    {id:'i10',name:'עגבניות',icon:'🍅',qty:5,unit:"ק\"ג",minQty:10,invCat:'produce',desc:'מהחממה'},
-    {id:'i11',name:'קומפוסט',icon:'🪱',qty:80,unit:'ליטר',minQty:50,invCat:'materials',desc:'קומפוסט עצמי'},
-    {id:'i12',name:'דשן אורגני',icon:'🌿',qty:15,unit:"ק\"ג",minQty:5,invCat:'materials',desc:'לשדה'},
-    {id:'i13',name:'מים (מיכל)',icon:'💧',qty:800,unit:'ליטר',minQty:200,invCat:'water',desc:'מיכל ראשי'},
+    {id:'i7',name:'זרעי עגבניות',icon:'🌱',qty:200,unit:"יח'",minQty:100,invCat:'nursery',desc:'לחממה'},
+    {id:'i8',name:'שתילי מלפפון',icon:'🥒',qty:30,unit:'שתילים',minQty:20,invCat:'nursery',desc:'לשדה'},
+    {id:'i9',name:'ביצים טריות',icon:'🥚',qty:48,unit:"יח'",minQty:20,invCat:'animals',desc:'מהמטילות'},
+    {id:'i10',name:'עגבניות',icon:'🍅',qty:5,unit:"ק\"ג",minQty:10,invCat:'animals',desc:'מהחממה'},
+    {id:'i11',name:'קומפוסט',icon:'🪱',qty:80,unit:'ליטר',minQty:50,invCat:'forest',desc:'קומפוסט עצמי'},
+    {id:'i12',name:'דשן אורגני',icon:'🌿',qty:15,unit:"ק\"ג",minQty:5,invCat:'forest',desc:'לשדה'},
+    {id:'i13',name:'מים (מיכל)',icon:'💧',qty:800,unit:'ליטר',minQty:200,invCat:'other',desc:'מיכל ראשי'},
   ],
   equip:[
     {id:'e1',name:'מערכת השקיה יער',icon:'💧',cond:85,lastSvc:'2026-01-15',nextSvc:'2026-07-15',cost:0,notes:'תקינה',area:'forest'},
@@ -806,16 +806,49 @@ function rInventory(main){
 
 function editInv(item){
   const isNew=!item;
-  if(isNew)item={id:'i'+Date.now(),name:'',icon:'📦',qty:0,unit:"יח'",minQty:1,invCat:'other',desc:''};
-  let html=`<div style="font-family:'Frank Ruhl Libre',serif;font-size:16px;font-weight:700;margin-bottom:14px">${isNew?'פריט חדש':'עריכת פריט'}</div>`;
-  html+=`<label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">שם</label><input id="ei_name" value="${item.name}" class="finp" style="margin-bottom:8px">`;
-  html+=`<label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">אייקון</label><input id="ei_icon" value="${item.icon}" class="finp" style="margin-bottom:8px">`;
-  html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px"><div><label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">כמות</label><input id="ei_qty" type="number" step="0.1" value="${item.qty}" class="finp"></div><div><label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">מינימום</label><input id="ei_min" type="number" step="0.1" value="${item.minQty}" class="finp"></div></div>`;
-  html+=`<label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">יחידה</label><select id="ei_unit" class="finp" style="margin-bottom:8px">${UNITS.map(u=>`<option value="${u}"${u===item.unit?' selected':''}>${u}</option>`).join('')}</select>`;
-  html+=`<label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">קטגוריה</label><select id="ei_cat" class="finp" style="margin-bottom:12px">${Object.entries(INV_CATS).map(([k,v])=>`<option value="${k}"${k===item.invCat?' selected':''}>${v.l}</option>`).join('')}</select>`;
-  html+=`<button onclick="(()=>{const n=document.getElementById('ei_name').value.trim();if(!n){alert('חסר שם');return;}item.name=n;item.icon=document.getElementById('ei_icon').value||'📦';item.qty=parseFloat(document.getElementById('ei_qty').value)||0;item.minQty=parseFloat(document.getElementById('ei_min').value)||1;item.unit=document.getElementById('ei_unit').value;item.invCat=document.getElementById('ei_cat').value;if(${isNew}){DB.inv.push(item);}save();document.querySelector('.modal-bg').remove();toast('נשמר');renderTab();})()" style="width:100%;padding:11px;background:var(--sage);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">שמור</button>`;
-  if(!isNew)html+=`<button onclick="if(confirm('למחוק?')){DB.inv=DB.inv.filter(i=>i.id!=='${item.id}');save();document.querySelector('.modal-bg').remove();toast('נמחק');renderTab();}" style="width:100%;padding:9px;background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;font-weight:600;cursor:pointer;margin-top:6px;font-family:inherit">מחק פריט</button>`;
-  const{bg,box}=modal(html);box.appendChild(el('span',{},'')); // trigger close button exists
+  if(isNew)item={id:'i'+Date.now(),name:'',icon:'📦',qty:0,unit:"יח'",minQty:1,invCat:'animals',desc:''};
+  const bg=el('div',{className:'modal-bg'});
+  const box=el('div',{className:'modal'});
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'14px'}},isNew?'פריט חדש':'עריכת פריט'));
+  const nameInp=finp({value:item.name,placeholder:'שם הפריט'});
+  const iconInp=finp({value:item.icon,placeholder:'אמוג׳י'});
+  const qtyInp=finp({type:'number',step:'0.1',value:String(item.qty)});
+  const minInp=finp({type:'number',step:'0.1',value:String(item.minQty)});
+  const unitSel=fsel(["יח'","ק\"ג",'גרם','ליטר','שקים','שתילים','זוגות','בקבוקים'].map(u=>[u,u]),item.unit);
+  const catSel=fsel(Object.entries(INV_CATS).map(([k,v])=>[k,v.l]),item.invCat);
+  const descInp=finp({value:item.desc||'',placeholder:'תיאור (אופציונלי)'});
+  box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(nameInp);
+  box.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'אמוג׳י'),iconInp]),
+    el('div',{},[el('div',{className:'flab'},'קטגוריה'),catSel]),
+  ]));
+  box.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'כמות'),qtyInp]),
+    el('div',{},[el('div',{className:'flab'},'מינימום'),minInp]),
+  ]));
+  box.appendChild(el('div',{className:'flab'},'יחידה'));box.appendChild(unitSel);
+  box.appendChild(el('div',{className:'flab'},'תיאור'));box.appendChild(descInp);
+  box.appendChild(btn('שמור','var(--sage)',()=>{
+    const name=nameInp.value.trim();
+    if(!name){toast('חסר שם');return;}
+    item.name=name;
+    item.icon=iconInp.value||'📦';
+    item.qty=parseFloat(qtyInp.value)||0;
+    item.minQty=parseFloat(minInp.value)||1;
+    item.unit=unitSel.value;
+    item.invCat=catSel.value;
+    item.desc=descInp.value.trim();
+    if(isNew)DB.inv.push(item);
+    save();bg.remove();toast('נשמר \u2713');renderTab();
+  },{width:'100%',marginTop:'12px'}));
+  if(!isNew)box.appendChild(btn('מחק פריט','var(--mist)',()=>{
+    if(!confirm('למחוק '+item.name+'?'))return;
+    DB.inv=DB.inv.filter(i=>i.id!==item.id);
+    save();bg.remove();toast('נמחק');renderTab();
+  },{width:'100%',marginTop:'6px',color:'var(--red)',background:'none',border:'1px solid var(--red)'}));
+  box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+  bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
 }
 
 function rMaintenance(main){
