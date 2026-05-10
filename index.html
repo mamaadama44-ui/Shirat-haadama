@@ -1243,26 +1243,72 @@ function editProject(p){
   if(!p.items)p.items=[];
   const colors=['#6a9a5a','#C85A3A','#6a4a8e','#2a6e3a','#b8832a','#2a5a6e','#d4633a','#6b4a2a'];
   let selColor=p.color, selStatus=p.status;
+  let localItems=p.items.map(i=>({...i})); // work on copy
 
   const bg=el('div',{className:'modal-bg'});
   const box=el('div',{className:'modal'});
+
   const titleInp=finp({placeholder:'שם הפרויקט',value:p.title});
   const descInp=fta({placeholder:'תיאור קצר',value:p.desc||''});
-  descInp.style.minHeight='55px';
+  descInp.style.minHeight='50px';
   const startInp=finp({type:'date',value:p.startDate||''});
   const endInp=finp({type:'date',value:p.endDate||''});
   const statusSel=fsel([['active','פעיל'],['done','הושלם']],selStatus,v=>{selStatus=v;});
+
   const colorPicker=el('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',margin:'4px 0'}});
   const renderColors=()=>{
     colorPicker.innerHTML='';
     colors.forEach(c=>{
-      const cb=el('div',{style:{width:'24px',height:'24px',borderRadius:'50%',background:c,cursor:'pointer',
+      const cb=el('div',{style:{width:'22px',height:'22px',borderRadius:'50%',background:c,cursor:'pointer',
         border:c===selColor?'3px solid var(--earth)':'3px solid transparent'}});
       cb.onclick=()=>{selColor=c;renderColors();};
       colorPicker.appendChild(cb);
     });
   };
   renderColors();
+
+  // Items list
+  const itemsContainer=el('div',{style:{display:'flex',flexDirection:'column',gap:'4px',marginBottom:'8px'}});
+
+  const renderItems=()=>{
+    itemsContainer.innerHTML='';
+    localItems.forEach((item,i)=>{
+      const row=el('div',{style:{display:'flex',gap:'6px',alignItems:'center',background:'var(--mist)',borderRadius:'7px',padding:'5px 8px'}});
+      const ti=el('input',{style:{flex:1,border:'none',background:'transparent',fontSize:'12px',fontFamily:'inherit',outline:'none'}});
+      ti.value=item.title;
+      ti.oninput=()=>{localItems[i].title=ti.value;};
+      const us=el('select',{style:{fontSize:'11px',border:'1px solid var(--parch)',borderRadius:'5px',padding:'2px 4px',fontFamily:'inherit',background:'var(--white)'}});
+      [['','ללא'],...DB.users.map(u=>[u.id,u.emoji])].forEach(([v,l])=>{
+        const o=el('option',{value:v},l);
+        if(v===item.uid)o.selected=true;
+        us.appendChild(o);
+      });
+      us.onchange=e=>{localItems[i].uid=e.target.value;};
+      const di=el('input',{type:'date',style:{fontSize:'10px',border:'1px solid var(--parch)',borderRadius:'5px',padding:'2px 4px',fontFamily:'inherit'}});
+      di.value=item.due||'';
+      di.onchange=e=>{localItems[i].due=e.target.value;};
+      const del=el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'14px',flexShrink:0}},'\u00d7');
+      del.onclick=()=>{localItems.splice(i,1);renderItems();};
+      row.appendChild(ti);row.appendChild(us);row.appendChild(di);row.appendChild(del);
+      itemsContainer.appendChild(row);
+    });
+    // Add new item row
+    const addRow=el('div',{style:{display:'flex',gap:'6px',alignItems:'center'}});
+    const newTi=finp({placeholder:'הוסף משימה...',style:{fontSize:'12px',padding:'6px 10px'}});
+    const addBtn=el('button',{style:{background:'var(--sage)',color:'#fff',border:'none',borderRadius:'7px',padding:'6px 12px',cursor:'pointer',fontSize:'13px',fontWeight:700,flexShrink:0}},'+');
+    const doAdd=()=>{
+      const v=newTi.value.trim();if(!v)return;
+      localItems.push({id:'pi'+Date.now(),title:v,done:false,uid:'',due:''});
+      newTi.value='';renderItems();
+      setTimeout(()=>newTi.focus(),50);
+    };
+    addBtn.onclick=doAdd;
+    newTi.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doAdd();}});
+    addRow.appendChild(newTi);addRow.appendChild(addBtn);
+    itemsContainer.appendChild(addRow);
+  };
+  renderItems();
+
   box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'14px'}},isNew?'פרויקט חדש':'עריכת פרויקט'));
   box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(titleInp);
   box.appendChild(el('div',{className:'flab'},'תיאור'));box.appendChild(descInp);
@@ -1272,14 +1318,19 @@ function editProject(p){
   box.appendChild(dr);
   box.appendChild(el('div',{className:'flab'},'צבע'));box.appendChild(colorPicker);
   box.appendChild(el('div',{className:'flab'},'סטטוס'));box.appendChild(statusSel);
-  box.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',background:'var(--mist)',borderRadius:'7px',padding:'8px 10px',marginTop:'10px'}},'ניתן להוסיף ולערוך משימות ישירות בכרטיס הפרויקט לאחר השמירה'));
-  box.appendChild(btn('שמור','var(--sage)',()=>{
+  box.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',margin:'10px 0 5px'}},[
+    el('div',{className:'flab',style:{margin:0}},'משימות הפרויקט'),
+    el('span',{style:{fontSize:'11px',color:'var(--sage)',fontWeight:600}},localItems.length+' משימות'),
+  ]));
+  box.appendChild(itemsContainer);
+  box.appendChild(btn('שמור פרויקט','var(--sage)',()=>{
     const title=titleInp.value.trim();if(!title){toast('חסר שם');return;}
     p.title=title;p.color=selColor;p.status=selStatus;
     p.desc=descInp.value.trim();p.startDate=startInp.value;p.endDate=endInp.value;
+    p.items=localItems.filter(i=>i.title.trim());
     if(isNew)DB.projects.push(p);
-    save();bg.remove();toast('נשמר ✓');renderTab();
-  },{width:'100%',marginTop:'14px'}));
+    save();bg.remove();toast('נשמר \u2713');renderTab();
+  },{width:'100%',marginTop:'10px'}));
   box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
   bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
   document.body.appendChild(bg);
