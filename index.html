@@ -1211,49 +1211,77 @@ function editProject(p){
   const statusSel=fsel([['active','פעיל'],['done','הושלם']],selStatus,v=>{selStatus=v;});
 
   const colorPicker=el('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',margin:'4px 0'}});
-  colors.forEach(c=>{
-    const cb=el('div',{style:{width:'22px',height:'22px',borderRadius:'50%',background:c,cursor:'pointer',border:c===selColor?'3px solid var(--earth)':'3px solid transparent'}});
-    cb.onclick=()=>{selColor=c;colorPicker.querySelectorAll('div').forEach(x=>x.style.border='3px solid transparent');cb.style.border='3px solid var(--earth)';};
-    colorPicker.appendChild(cb);
-  });
-
-  // Task selector with worker assignment
-  const taskList=el('div',{style:{maxHeight:'200px',overflowY:'auto',border:'1px solid var(--parch)',borderRadius:'8px',padding:'4px'}});
-  const renderTL=()=>{
-    taskList.innerHTML='';
-    at().forEach(t=>{
-      const checked=selTaskIds.includes(t.id);
-      const assignedUid=selAssign[t.id]||'';
-      const row=el('div',{style:{padding:'5px',borderRadius:'6px',marginBottom:'2px',background:checked?'rgba(106,154,90,.08)':'transparent'}});
-      const top=el('div',{style:{display:'flex',alignItems:'center',gap:'6px',cursor:'pointer'}});
-      top.onclick=()=>{
-        if(selTaskIds.includes(t.id))selTaskIds=selTaskIds.filter(x=>x!==t.id);
-        else selTaskIds.push(t.id);
-        renderTL();
-      };
-      top.appendChild(el('span',{style:{color:checked?'var(--sage)':'var(--clay)',fontSize:'14px'}},checked?'☑':'☐'));
-      top.appendChild(el('span',{style:{fontSize:'12px',flex:1}},t.title));
-      const area=AREAS[t.area];
-      if(area)top.appendChild(el('span',{style:{fontSize:'10px',color:area.c}},area.l));
-      row.appendChild(top);
-      if(checked){
-        const ws=el('select',{style:{width:'100%',fontSize:'11px',border:'1px solid var(--parch)',borderRadius:'6px',padding:'3px 6px',marginTop:'3px',fontFamily:'inherit'}});
-        [['','ללא שיוך'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])].forEach(([v,l])=>{
-          const o=el('option',{value:v},l);
-          if(v===assignedUid)o.selected=true;
-          ws.appendChild(o);
-        });
-        ws.addEventListener('change',e=>{selAssign[t.id]=e.target.value;});
-        row.appendChild(ws);
-      }
-      taskList.appendChild(row);
+  const renderColors=()=>{
+    colorPicker.innerHTML='';
+    colors.forEach(c=>{
+      const cb=el('div',{style:{width:'24px',height:'24px',borderRadius:'50%',background:c,cursor:'pointer',
+        border:c===selColor?'3px solid var(--earth)':'3px solid transparent',transition:'border .15s'}});
+      cb.onclick=()=>{selColor=c;renderColors();};
+      colorPicker.appendChild(cb);
     });
   };
-  renderTL();
+  renderColors();
+
+  const taskListEl=el('div',{style:{maxHeight:'220px',overflowY:'auto',border:'1px solid var(--parch)',borderRadius:'8px',padding:'4px'}});
+
+  const renderTaskList=()=>{
+    taskListEl.innerHTML='';
+    if(!at().length){
+      taskListEl.appendChild(el('div',{style:{textAlign:'center',color:'var(--clay)',fontSize:'12px',padding:'12px'}},'אין משימות במערכת'));
+      return;
+    }
+    // Group by area
+    const byArea={};
+    at().forEach(t=>{if(!byArea[t.area])byArea[t.area]=[];byArea[t.area].push(t);});
+    Object.entries(byArea).forEach(([aKey,tasks])=>{
+      const area=AREAS[aKey];
+      if(area){
+        taskListEl.appendChild(el('div',{style:{fontSize:'10px',fontWeight:700,color:area.c,padding:'6px 6px 2px',textTransform:'uppercase',letterSpacing:'.05em'}},area.l));
+      }
+      tasks.forEach(t=>{
+        const checked=selTaskIds.includes(t.id);
+        const assignedUid=selAssign[t.id]||'';
+        const row=el('div',{style:{padding:'5px 6px',borderRadius:'6px',marginBottom:'2px',
+          background:checked?'rgba(106,154,90,.1)':'transparent',transition:'background .15s'}});
+        const top=el('div',{style:{display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',userSelect:'none'}});
+        const chk=el('div',{style:{width:'18px',height:'18px',borderRadius:'4px',flexShrink:0,
+          border:checked?'none':'1.5px solid var(--parch)',
+          background:checked?'var(--sage)':'transparent',
+          display:'flex',alignItems:'center',justifyContent:'center',transition:'all .15s'}},
+          checked?el('span',{style:{color:'#fff',fontSize:'11px',fontWeight:700}},'✓'):'');
+        top.appendChild(chk);
+        top.appendChild(el('span',{style:{fontSize:'12px',flex:1,color:checked?'var(--earth)':'var(--clay)',
+          fontWeight:checked?600:400}},t.title));
+        top.onclick=()=>{
+          if(selTaskIds.includes(t.id)){selTaskIds=selTaskIds.filter(x=>x!==t.id);delete selAssign[t.id];}
+          else selTaskIds.push(t.id);
+          renderTaskList();
+        };
+        row.appendChild(top);
+        if(checked){
+          const ws=el('select',{style:{width:'100%',fontSize:'11px',border:'1px solid var(--parch)',
+            borderRadius:'6px',padding:'4px 8px',marginTop:'5px',fontFamily:'inherit',
+            background:'var(--white)',color:'var(--earth)'}});
+          [['','ללא שיוך'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])].forEach(([v,l])=>{
+            const o=el('option',{value:v},l);
+            if(v===assignedUid)o.selected=true;
+            ws.appendChild(o);
+          });
+          ws.addEventListener('change',e=>{
+            if(e.target.value)selAssign[t.id]=e.target.value;
+            else delete selAssign[t.id];
+          });
+          row.appendChild(ws);
+        }
+        taskListEl.appendChild(row);
+      });
+    });
+  };
+  renderTaskList();
 
   const bg=el('div',{className:'modal-bg'});
   const box=el('div',{className:'modal'});
-  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},isNew?'פרויקט חדש':'עריכת פרויקט'));
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'14px'}},isNew?'פרויקט חדש':'עריכת פרויקט'));
   box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(titleInp);
   box.appendChild(el('div',{className:'flab'},'תיאור'));box.appendChild(descInp);
   const dr=el('div',{className:'fgrid'});
@@ -1262,15 +1290,19 @@ function editProject(p){
   box.appendChild(dr);
   box.appendChild(el('div',{className:'flab'},'צבע'));box.appendChild(colorPicker);
   box.appendChild(el('div',{className:'flab'},'סטטוס'));box.appendChild(statusSel);
-  box.appendChild(el('div',{className:'flab'},'משימות + שיוך עובד'));box.appendChild(taskList);
-  box.appendChild(btn('שמור','var(--sage)',()=>{
-    const title=titleInp.value.trim(); if(!title){toast('חסר שם');return;}
-    p.title=title;p.color=selColor;p.status=selStatus;p.desc=descInp.value.trim();
-    p.taskIds=selTaskIds;p.taskAssign=selAssign;
+  box.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',margin:'10px 0 4px'}},[
+    el('div',{className:'flab',style:{margin:0}},'משימות + שיוך עובד'),
+    el('span',{style:{fontSize:'11px',color:'var(--sage)',fontWeight:600}},selTaskIds.length+' נבחרו'),
+  ]));
+  box.appendChild(taskListEl);
+  box.appendChild(btn('שמור פרויקט','var(--sage)',()=>{
+    const title=titleInp.value.trim();if(!title){toast('חסר שם');return;}
+    p.title=title;p.color=selColor;p.status=selStatus;
+    p.desc=descInp.value.trim();p.taskIds=selTaskIds;p.taskAssign=selAssign;
     p.startDate=startInp.value;p.endDate=endInp.value;
     if(isNew)DB.projects.push(p);
     save();bg.remove();toast('פרויקט נשמר \u2713');renderTab();
-  },{width:'100%',marginTop:'12px'}));
+  },{width:'100%',marginTop:'14px'}));
   box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
   bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
   document.body.appendChild(bg);
