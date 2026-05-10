@@ -654,25 +654,124 @@ function rTasks(main){
 }
 
 function rActivity(main){
-  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'📋 יומן פעילות'));
-  const logs=[...(DB.actLog||[])].reverse().slice(0,50);
-  if(!logs.length){main.appendChild(empty('אין פעילות עדיין'));return;}
-  logs.forEach(l=>{
-    const user=gu(l.userId);
-    const area=l.area&&AREAS[l.area];
-    main.appendChild(el('div',{className:'act-item'},[
-      el('div',{style:{fontSize:'24px',lineHeight:1}},user?user.emoji:'👤'),
-      el('div',{style:{flex:1}},[
-        el('div',{style:{fontWeight:600,fontSize:'13px'}},l.text),
-        el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px'}},[
-          el('span',{},(user?user.name:'')+'  '),
-          area?el('span',{style:{color:area.c}},area.l+'  '):'',
-          el('span',{},new Date(l.ts).toLocaleDateString('he-IL',{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'}))
-        ]),
-        l.detail?el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'3px',fontStyle:'italic'}},l.detail):''
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'📋 יומן פעילות יומי'));
+
+  const today=tdk();
+  const todayComps=DB.comps[today]||{};
+  const allTasks=at();
+
+  const completedToday=Object.entries(todayComps).map(([tid,uid])=>{
+    const t=allTasks.find(x=>x.id===tid);
+    const u=gu(uid);
+    if(!t||!u)return null;
+    return{t,u};
+  }).filter(Boolean);
+
+  if(!completedToday.length){
+    main.appendChild(card([
+      el('div',{style:{textAlign:'center',padding:'20px 0'}},[
+        el('div',{style:{fontSize:'32px',marginBottom:'8px'}},'☀️'),
+        el('div',{style:{fontWeight:600,fontSize:'14px',marginBottom:'4px'}},'יום חדש התחיל'),
+        el('div',{style:{color:'var(--clay)',fontSize:'12px'}},'כשמסמנים משימות כבוצע — הן יופיעו כאן'),
       ])
     ]));
-  });
+  } else {
+    // Summary
+    main.appendChild(card([
+      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
+        el('div',{style:{fontWeight:700}},new Date().toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'})),
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,color:'var(--sage)'}},completedToday.length+' ✓')
+      ]),
+      pbar(Math.round(completedToday.length/Math.max(allTasks.length,1)*100),'var(--sage)',8),
+      el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'4px'}},Math.round(completedToday.length/Math.max(allTasks.length,1)*100)+'% מהמשימות הושלמו')
+    ]));
+
+    // Group by area
+    const byArea={};
+    completedToday.forEach(item=>{
+      const a=item.t.area||'other';
+      if(!byArea[a])byArea[a]=[];
+      byArea[a].push(item);
+    });
+
+    Object.entries(byArea).forEach(([aKey,items])=>{
+      const area=AREAS[aKey];
+      const c=card([
+        el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
+          el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700,color:area?.c||'var(--clay)'}},area?.l||aKey),
+          el('span',{style:{fontSize:'12px',background:(area?.c||'#888')+'22',color:area?.c||'var(--clay)',padding:'2px 8px',borderRadius:'10px',fontWeight:600}},items.length+' \u05de\u05e9\u05d9\u05de\u05d5\u05ea')
+        ])
+      ]);
+      items.forEach(({t,u})=>{
+        c.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'7px 0',borderBottom:'1px solid var(--mist)'}},[
+          el('span',{style:{color:'var(--sage)',fontSize:'16px',flexShrink:0}},'\u2713'),
+          el('div',{style:{flex:1}},[
+            el('div',{style:{fontWeight:600,fontSize:'13px'}},t.title),
+            t.scheduledTime?el('div',{style:{fontSize:'10px',color:'var(--clay)'}},'⏰ '+t.scheduledTime):'',
+          ]),
+          el('div',{style:{display:'flex',alignItems:'center',gap:'5px',flexShrink:0}},[
+            el('span',{style:{fontSize:'18px'}},u.emoji),
+            el('span',{style:{fontSize:'11px',color:'var(--clay)'}},u.name),
+            el('span',{className:'pts-bdg'},'+' + (PRI[t.pri]?.pts||5) + '\u2605'),
+          ])
+        ]));
+      });
+      main.appendChild(c);
+    });
+  }
+
+  // Hours logged today
+  const todayHours=(DB.hoursLog||[]).filter(h=>h.date===today);
+  if(todayHours.length){
+    const totalH=todayHours.reduce((s,h)=>s+ch(h.start,h.end),0);
+    main.appendChild(card([
+      el('div',{className:'card-t'},'\u23f1 \u05e9\u05e2\u05d5\u05ea \u05e2\u05d1\u05d5\u05d3\u05d4 \u05d4\u05d9\u05d5\u05dd'),
+      ...todayHours.map(h=>{
+        const u=gu(h.uid);
+        return el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'6px 0',borderBottom:'1px solid var(--mist)',fontSize:'13px'}},[
+          el('span',{style:{fontSize:'18px'}},u?u.emoji:'👤'),
+          el('span',{style:{flex:1}},u?u.name:''),
+          el('span',{style:{color:'var(--clay)'}},h.start+'\u2013'+h.end),
+          el('span',{style:{fontWeight:700,color:'var(--sage)'}},ch(h.start,h.end).toFixed(1)+' \u05e9\''),
+        ]);
+      }),
+      el('div',{style:{marginTop:'8px',fontWeight:700,fontSize:'14px',color:'var(--sage)',borderTop:'1px solid var(--mist)',paddingTop:'8px'}},'\u05e1\u05d4"\u05db: '+totalH.toFixed(1)+' \u05e9\'')
+    ]));
+  }
+
+  // Maintenance done today
+  const maintDoneToday=(DB.maintLog||[]).filter(l=>new Date(l.closedAt).toDateString()===new Date().toDateString());
+  if(maintDoneToday.length){
+    main.appendChild(card([
+      el('div',{className:'card-t'},'\uD83D\uDD27 \u05ea\u05d7\u05d6\u05d5\u05e7\u05d4 \u05e9\u05d1\u05d5\u05e6\u05e2\u05d4 \u05d4\u05d9\u05d5\u05dd'),
+      ...maintDoneToday.map(l=>el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'6px 0',borderBottom:'1px solid var(--mist)',fontSize:'13px'}},[
+        el('span',{style:{color:'var(--sage)'}},'\u2713'),
+        el('span',{style:{flex:1}},l.title),
+        el('span',{style:{color:'var(--clay)'}},l.closedByName),
+        l.cost?el('span',{style:{color:'var(--straw)',fontWeight:700}},l.cost+'\u20aa'):'',
+      ]))
+    ]));
+  }
+
+  // Projects progress today
+  const activeProj=DB.projects.filter(p=>p.status==='active');
+  if(activeProj.length){
+    const c=card([el('div',{className:'card-t'},'\uD83D\uDDC2 \u05e1\u05d8\u05d8\u05d5\u05e1 \u05e4\u05e8\u05d5\u05d9\u05e7\u05d8\u05d9\u05dd')]);
+    activeProj.forEach(p=>{
+      const tasks=(p.taskIds||[]).map(id=>allTasks.find(t=>t.id===id)).filter(Boolean);
+      const done=tasks.filter(t=>todayComps[t.id]||t.done).length;
+      const pct=Math.round(done/Math.max(tasks.length,1)*100);
+      c.appendChild(el('div',{style:{marginBottom:'10px'}},[
+        el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'13px',marginBottom:'4px'}},[
+          el('span',{style:{fontWeight:600}},p.title),
+          el('span',{style:{color:p.color,fontWeight:700}},pct+'%')
+        ]),
+        pbar(pct,p.color,6),
+        p.endDate?el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'2px'}},'\u05d9\u05e2\u05d3: '+fd(p.endDate)):'',
+      ]));
+    });
+    main.appendChild(c);
+  }
 }
 
 function rInventory(main){
