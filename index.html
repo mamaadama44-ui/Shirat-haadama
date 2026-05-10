@@ -1545,8 +1545,7 @@ function rAdmin(main){
     }
     if(extra){msgLines.push('');msgLines.push(extra);}
     msgLines.push('','🌾 שירת האדמה');
-    const msg=msgLines.join('
-');
+    const msg=msgLines.join('\n');
     toast('שולח...',3000);
     const ok=await sendEmail(u.email,u.name,t?'תזכורת: '+t.title:'תזכורת מהחווה',msg);
     toast(ok?'תזכורת נשלחה ✓':'שגיאה — בדוק מייל העובד');
