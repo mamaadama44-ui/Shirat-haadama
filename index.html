@@ -1183,6 +1183,8 @@ function rProjects(main){
             el('span',{style:{color:isDone?'var(--sage)':'var(--clay)',fontSize:'14px'}},isDone?'✓':'○'),
             el('span',{style:{flex:1,textDecoration:isDone?'line-through':'none',color:isDone?'var(--clay)':'var(--earth)'}},t.title),
             worker?el('span',{style:{fontSize:'11px',background:worker.color+'22',color:worker.color,padding:'1px 6px',borderRadius:'8px',fontWeight:600}},worker.emoji+' '+worker.name):'',
+            ME.role==='מנהל'?el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.7,padding:'0 2px'},onclick:(e)=>{e.stopPropagation();editTask(t);}},'✏️'):'',
+            ME.role==='מנהל'?el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.5,padding:'0 2px'},onclick:(e)=>{e.stopPropagation();if(!confirm('למחוק?'))return;p.taskIds=(p.taskIds||[]).filter(x=>x!==t.id);if(p.taskAssign)delete p.taskAssign[t.id];DB.rT=DB.rT.filter(x=>x.id!==t.id);DB.oT=DB.oT.filter(x=>x.id!==t.id);save();renderTab();}},'🗑'):'',
           ]);
         })
       ]):'',
