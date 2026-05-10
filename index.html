@@ -1819,8 +1819,7 @@ async function sendMonthlySummary(){
   const admin=DB.users.find(u=>u.role==='מנהל');
   if(!admin||!admin.email) return;
 
-  const ok=await sendEmail(admin.email, admin.name, 'סיכום חודשי — '+monthName+' '+HY2, lines.join('
-'));
+  const ok=await sendEmail(admin.email, admin.name, 'סיכום חודשי — '+monthName+' '+HY2, lines.join('\n'));
   if(ok){
     if(!DB.emailLog)DB.emailLog={};
     DB.emailLog['monthly-'+mKey]='sent';
