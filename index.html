@@ -34,9 +34,9 @@ input[type=email],input[type=password],input[type=time],input[type=date],input[t
 .prog-w{max-width:720px;margin:0 auto;padding-bottom:8px}
 .prog-bg{height:2px;background:rgba(255,255,255,.08);border-radius:2px}
 .prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--sage),var(--gold));transition:width .6s}
-.tabs-w{max-width:720px;margin:0 auto;display:flex;overflow-x:auto;scrollbar-width:none}
+.tabs-w{max-width:720px;margin:0 auto;display:flex;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .tabs-w::-webkit-scrollbar{display:none}
-.tab-btn{padding:9px 12px;background:none;border:none;color:rgba(245,237,216,.45);font-weight:500;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tab-btn{padding:8px 10px;background:none;border:none;color:rgba(245,237,216,.45);font-weight:500;font-size:11px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;flex-shrink:0}
 .tab-btn.on{color:var(--gold);font-weight:700;border-bottom-color:var(--gold)}
 .app-main{max-width:720px;margin:0 auto;padding:14px 12px 80px}
 .card{background:var(--white);border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 2px 12px rgba(26,18,5,.12);border:1px solid rgba(232,216,184,.4)}
@@ -354,7 +354,7 @@ function renderApp(){
     el('div',{className:'prog-w'},[el('div',{className:'prog-bg'},[pf])]),tw
   ]);
   const main=el('div',{className:'app-main',id:'app-main'});
-  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות & שעות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 גינה'},...(ME.role==='מנהל'?[{id:'admin',l:'⚙️ ניהול'}]:[])];
+  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות & שעות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 עונות'},...(ME.role==='מנהל'?[{id:'admin',l:'⚙️ ניהול'}]:[])];
   TABS.forEach(t=>{
     const b=el('button',{className:'tab-btn'+(t.id===TAB?' on':''),onclick:()=>{TAB=t.id;tw.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');renderTab(main,pf);}},t.l);
     tw.appendChild(b);
