@@ -2143,9 +2143,158 @@ async function checkAndSendGardenEmail(){
   }
 }
 
+
+async function sendEmail(toEmail, toName, subject, message){
+  try{
+    await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
+      to_email: toEmail, name: toName, subject: subject,
+      message: message, email: 'mamaadama44@gmail.com'
+    });
+    return true;
+  } catch(e){ console.error('Email error:', e); return false; }
+}
+
+async function sendDailyDigest(){
+  const today=tdk();
+  if(DB.emailLog&&DB.emailLog[today]==='sent') return;
+  const todayTasks=[...DB.rT,...DB.oT.filter(t=>!t.done)];
+  const promises=DB.users.filter(u=>u.email).map(async u=>{
+    const myTasks=todayTasks.filter(t=>t.uid===u.id);
+    const dateStr=new Date().toLocaleDateString('he-IL');
+    const msgLines=['שלום '+u.name+',',''];
+    if(u.role==='\u05de\u05e0\u05d4\u05dc'){
+      msgLines.push('\u05e1\u05d9\u05db\u05d5\u05dd \u05de\u05e9\u05d9\u05de\u05d5\u05ea \u05dc\u05d9\u05d5\u05dd \u2014 '+dateStr+':','');
+      todayTasks.slice(0,15).forEach(t=>{const w=t.uid?gu(t.uid):null;msgLines.push('\u2022 '+t.title+(w?' \u2014 '+w.name:''));});
+      msgLines.push('','\u05e1\u05d4"כ: '+todayTasks.length+' \u05de\u05e9\u05d9\u05de\u05d5\u05ea');
+    } else if(myTasks.length){
+      msgLines.push('\u05d4\u05de\u05e9\u05d9\u05de\u05d5\u05ea \u05e9\u05dc\u05da \u05dc\u05d9\u05d5\u05dd \u2014 '+dateStr+':','');
+      myTasks.forEach(t=>msgLines.push('\u2022 '+t.title+(t.scheduledTime?' \u05d1\u05e9\u05e2\u05d4 '+t.scheduledTime:'')));
+      msgLines.push('','\u05d1\u05d4\u05e6\u05dc\u05d7\u05d4! \uD83C\uDF3E');
+    } else {
+      msgLines.push('\u05d0\u05d9\u05df \u05de\u05e9\u05d9\u05de\u05d5\u05ea \u05de\u05d5\u05d2\u05d3\u05e8\u05d5\u05ea \u05dc\u05d4\u05d9\u05d5\u05dd.','','\u05d9\u05d5\u05dd \u05d8\u05d5\u05d1! \uD83C\uDF3E');
+    }
+    msgLines.push('','\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4');
+    return sendEmail(u.email, u.name, '\uD83C\uDF3E \u05e1\u05d9\u05db\u05d5\u05dd \u05de\u05e9\u05d9\u05de\u05d5\u05ea \u05d9\u05d5\u05de\u05d9', msgLines.join('\n'));
+  });
+  await Promise.all(promises);
+  if(!DB.emailLog)DB.emailLog={};
+  DB.emailLog[today]='sent';
+  save();
+}
+
+async function sendMonthlySummary(){
+  const now=new Date();
+  const HM2=now.getMonth(), HY2=now.getFullYear();
+  const mKey=HY2+'-'+String(HM2+1).padStart(2,'0');
+  if(DB.emailLog&&DB.emailLog['monthly-'+mKey]==='sent') return;
+  const lastDay=new Date(HY2,HM2+1,0).getDate();
+  const dayOfMonth=now.getDate();
+  if(dayOfMonth<lastDay-1&&dayOfMonth!==1) return;
+  const mPrefix=mKey+'-';
+  const monthNames=['\u05d9\u05e0\u05d5\u05d0\u05e8','\u05e4\u05d1\u05e8\u05d5\u05d0\u05e8','\u05de\u05e8\u05e5','\u05d0\u05e4\u05e8\u05d9\u05dc','\u05de\u05d0\u05d9','\u05d9\u05d5\u05e0\u05d9','\u05d9\u05d5\u05dc\u05d9','\u05d0\u05d5\u05d2\u05d5\u05e1\u05d8','\u05e1\u05e4\u05d8\u05de\u05d1\u05e8','\u05d0\u05d5\u05e7\u05d8\u05d5\u05d1\u05e8','\u05e0\u05d5\u05d1\u05de\u05d1\u05e8','\u05d3\u05e6\u05de\u05d1\u05e8'];
+  const monthName=monthNames[HM2];
+  const uH={};
+  (DB.hoursLog||[]).filter(h=>h.date.startsWith(mPrefix)).forEach(h=>{if(!uH[h.uid])uH[h.uid]=0;uH[h.uid]+=ch(h.start,h.end);});
+  const totalH=Object.values(uH).reduce((a,b)=>a+b,0);
+  const monthKeys=Object.keys(DB.comps||{}).filter(k=>k.startsWith(mPrefix));
+  const totalDone=monthKeys.reduce((s,k)=>s+Object.keys(DB.comps[k]).length,0);
+  const maintMonth=(DB.maintLog||[]).filter(l=>{const d=new Date(l.closedAt);return d.getFullYear()===HY2&&d.getMonth()===HM2;});
+  const totalCost=maintMonth.reduce((s,l)=>s+(l.cost||0),0);
+  const ranked=DB.users.map(u=>({name:u.name,emoji:u.emoji,pts:gp(u.id),hrs:(uH[u.id]||0).toFixed(1),tasks:monthKeys.reduce((s,k)=>s+Object.values(DB.comps[k]||{}).filter(v=>v===u.id).length,0)})).sort((a,b)=>b.pts-a.pts);
+  const parts=['\uD83C\uDF3E \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u2014 '+monthName+' '+HY2,'---','','\u23f1 \u05e9\u05e2\u05d5\u05ea \u05e2\u05d1\u05d5\u05d3\u05d4: '+totalH.toFixed(1),''];
+  ranked.forEach(u=>parts.push('  '+u.emoji+' '+u.name+': '+u.hrs+' \u05e9\' | '+u.tasks+' \u05de\u05e9\u05d9\u05de\u05d5\u05ea | '+u.pts+' \u05e0\u05e7\u05d5\u05d3\u05d5\u05ea'));
+  parts.push('','\u2705 \u05de\u05e9\u05d9\u05de\u05d5\u05ea \u05e9\u05d1\u05d5\u05e6\u05e2\u05d5: '+totalDone,'');
+  if(maintMonth.length){parts.push('\uD83D\uDD27 \u05ea\u05d7\u05d6\u05d5\u05e7\u05d4:');maintMonth.forEach(l=>parts.push('  \u2022 '+l.title+' ('+l.closedByName+')'+(l.cost?' \u2014 '+l.cost+'\u20aa':'')));if(totalCost)parts.push('  \u05e1\u05d4"\u05db: '+totalCost+'\u20aa');parts.push('');}
+  const shortage=DB.inv.filter(i=>i.qty<i.minQty);
+  if(shortage.length){parts.push('\u26a0\ufe0f \u05de\u05dc\u05d0\u05d9 \u05d7\u05e1\u05e8:');shortage.forEach(i=>parts.push('  \u2022 '+i.icon+' '+i.name));parts.push('');}
+  parts.push('\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d4\u05d3\u05de\u05d4');
+  const admin=DB.users.find(u=>u.role==='\u05de\u05e0\u05d4\u05dc');
+  if(!admin||!admin.email) return;
+  const ok=await sendEmail(admin.email,admin.name,'\uD83C\uDF3E \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u2014 '+monthName+' '+HY2,parts.join('\n'));
+  if(ok){if(!DB.emailLog)DB.emailLog={};DB.emailLog['monthly-'+mKey]='sent';save();toast('\uD83C\uDF3E \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u05e0\u05e9\u05dc\u05d7 \u2713',4000);}
+}
+
+async function checkAndSendDailyDigest(){
+  const today=tdk();
+  if(DB.emailLog&&DB.emailLog[today]==='sent') return;
+  const hour=new Date().getHours();
+  if(hour>=6&&hour<=10&&ME.role==='\u05de\u05e0\u05d4\u05dc') await sendDailyDigest();
+}
+
 async function checkAndSendMonthlySummary(){
   if(ME.role!=='מנהל') return;
   await sendMonthlySummary();
+}
+
+function rAdmin(main){
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'⚙️ ניהול'));
+  DB.users.forEach(user=>{
+    const uc=el('div',{style:{background:'var(--white)',borderRadius:'10px',padding:'12px',marginBottom:'8px',boxShadow:'0 2px 12px rgba(26,18,5,.12)',display:'flex',alignItems:'center',gap:'10px'}});
+    uc.appendChild(el('div',{style:{width:'38px',height:'38px',borderRadius:'50%',background:user.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px'}},user.emoji));
+    const ui=el('div',{style:{flex:1}});
+    ui.appendChild(el('div',{style:{fontWeight:700,fontSize:'14px'}},user.name));
+    ui.appendChild(el('div',{style:{fontSize:'11px',color:user.color,fontWeight:600}},user.role));
+    ui.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)'}},user.email+' · '+gp(user.id)+'\u2605'));
+    uc.appendChild(ui);
+    const acts=el('div',{style:{display:'flex',flexDirection:'column',gap:'4px'}});
+    const rb=el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'4px 9px',fontSize:'10px',fontWeight:600,cursor:'pointer',color:'var(--soil)',fontFamily:'inherit'}},user.role==='\u05de\u05e0\u05d4\u05dc'?'\u2192 \u05e2\u05d5\u05d1\u05d3':'\u2192 \u05de\u05e0\u05d4\u05dc');
+    rb.onclick=()=>{user.role=user.role==='\u05de\u05e0\u05d4\u05dc'?'\u05e2\u05d5\u05d1\u05d3':'\u05de\u05e0\u05d4\u05dc';save();toast('\u05ea\u05e4\u05e7\u05d9\u05d3 \u05e9\u05d5\u05e0\u05d4 \u2713');renderTab();};
+    acts.appendChild(rb);
+    if(user.id!==ME.id){const db2=el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'16px'}},'\uD83D\uDDD1');db2.onclick=()=>{if(!confirm('\u05dc\u05de\u05d7\u05d5\u05e7?'))return;DB.users=DB.users.filter(u=>u.id!==user.id);save();toast('\u05e0\u05de\u05d7\u05e7');renderTab();};acts.appendChild(db2);}
+    uc.appendChild(acts);main.appendChild(uc);
+  });
+
+  const ac=card([el('div',{className:'card-t'},'\u2795 \u05d4\u05d5\u05e1\u05e3 \u05e2\u05d5\u05d1\u05d3 \u05d7\u05d3\u05e9'),
+    el('div',{style:{fontSize:'12px',color:'var(--clay)',marginBottom:'10px',background:'var(--mist)',borderRadius:'7px',padding:'8px 10px'}},'\u05e8\u05e7 \u05de\u05e0\u05d4\u05dc \u05d9\u05db\u05d5\u05dc \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d7\u05e9\u05d1\u05d5\u05e0\u05d5\u05ea \u05d7\u05d3\u05e9\u05d9\u05dd')]);
+  const ni=finp({placeholder:'\u05e9\u05dd \u05de\u05dc\u05d0'});
+  const ei=finp({type:'email',placeholder:'email@sheirat.com'});
+  const pi=finp({type:'password',placeholder:'\u05dc\u05e4\u05d7\u05d5\u05ea 4 \u05ea\u05d5\u05d5\u05d9\u05dd'});
+  const rl=fsel([['\u05e2\u05d5\u05d1\u05d3','\u05e2\u05d5\u05d1\u05d3'],['\u05de\u05e0\u05d4\u05dc','\u05de\u05e0\u05d4\u05dc']],'\u05e2\u05d5\u05d1\u05d3');
+  let newE=EMOJIS[0];
+  const epg=el('div',{className:'ep-grid'});
+  EMOJIS.forEach((e,i)=>{const s=el('span',{className:'ep-item'+(i===0?' sel':'')},e);s.onclick=()=>{epg.querySelectorAll('.ep-item').forEach(x=>x.classList.remove('sel'));s.classList.add('sel');newE=e;};epg.appendChild(s);});
+  const sv2=btn('\u2713 \u05d4\u05d5\u05e1\u05e3 \u05e2\u05d5\u05d1\u05d3','var(--red)',async ()=>{
+    if(!ni.value.trim()||!ei.value||!pi.value){toast('\u05de\u05dc\u05d0 \u05d0\u05ea \u05db\u05dc \u05d4\u05e9\u05d3\u05d5\u05ea');return;}
+    if(DB.users.find(u=>u.email===ei.value.toLowerCase())){toast('\u05de\u05d9\u05d9\u05dc \u05db\u05d1\u05e8 \u05e7\u05d9\u05d9\u05dd');return;}
+    if(pi.value.length<4){toast('\u05e1\u05d9\u05e1\u05de\u05d0 \u05e7\u05e6\u05e8\u05d4');return;}
+    const u={id:'u'+Date.now(),name:ni.value.trim(),email:ei.value.toLowerCase(),pass:pi.value,role:rl.value,emoji:newE,color:COLS[DB.users.length%COLS.length]};
+    DB.users.push(u);save();
+    const cc=el('div',{style:{background:'#e8f5e4',border:'1px solid rgba(106,154,90,.4)',borderRadius:'12px',padding:'14px',marginBottom:'10px'}});
+    cc.appendChild(el('div',{style:{fontWeight:700,color:'var(--sage)',marginBottom:'8px'}},'\u2705 \u05e2\u05d5\u05d1\u05d3 \u05e0\u05d5\u05e6\u05e8!'));
+    cc.appendChild(el('div',{style:{fontFamily:'monospace',fontSize:'13px',background:'var(--white)',borderRadius:'8px',padding:'10px',lineHeight:2}},'\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4\n\uD83D\uDC64 '+u.name+'\n\uD83D\uDCE7 '+u.email+'\n\uD83D\uDD11 '+u.pass));
+    cc.appendChild(btn('\u05e1\u05d2\u05d5\u05e8','var(--mist)',()=>cc.remove(),{color:'var(--soil)',width:'100%',marginTop:'8px',fontSize:'12px'}));
+    ac.before(cc);ni.value='';ei.value='';pi.value='';toast(u.name+' \u05e0\u05d5\u05e1\u05e3/\u05d4 \u2713');renderTab();
+  },{width:'100%',padding:'12px',marginTop:'9px'});
+  ac.appendChild(el('div',{className:'flab'},'\u05e9\u05dd'));ac.appendChild(ni);
+  ac.appendChild(el('div',{className:'flab'},'\u05de\u05d9\u05d9\u05dc'));ac.appendChild(ei);
+  ac.appendChild(el('div',{className:'flab'},'\u05e1\u05d9\u05e1\u05de\u05d0'));ac.appendChild(pi);
+  ac.appendChild(el('div',{className:'flab'},'\u05ea\u05e4\u05e7\u05d9\u05d3'));ac.appendChild(rl);
+  ac.appendChild(el('div',{className:'flab'},'\u05d0\u05de\u05d5\u05d2\u05f3\u05d9'));ac.appendChild(epg);
+  ac.appendChild(sv2);main.appendChild(ac);
+
+  // Email section
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,margin:'16px 0 10px'}},'\uD83D\uDCE7 \u05e9\u05dc\u05d9\u05d7\u05ea \u05de\u05d9\u05d9\u05dc\u05d9\u05dd'));
+  main.appendChild(card([
+    el('div',{className:'card-t'},'\uD83D\uDCEC \u05e1\u05d9\u05db\u05d5\u05de\u05d9\u05dd \u05d9\u05d5\u05de\u05d9\u05d9\u05dd \u05d5\u05d7\u05d5\u05d3\u05e9\u05d9\u05d9\u05dd'),
+    el('div',{style:{display:'flex',gap:'8px',flexDirection:'column'}},[
+      btn('\uD83D\uDCCA \u05e9\u05dc\u05d7 \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u05e2\u05db\u05e9\u05d9\u05d5','var(--earth)',async ()=>{
+        toast('\u05de\u05db\u05d9\u05df...',4000);
+        const now2=new Date();const mKey2=now2.getFullYear()+'-'+String(now2.getMonth()+1).padStart(2,'0');
+        if(DB.emailLog)delete DB.emailLog['monthly-'+mKey2];
+        await sendMonthlySummary();toast('\u05e0\u05e9\u05dc\u05d7 \u2713');
+      },{width:'100%'}),
+      btn('\uD83D\uDCEC \u05e9\u05dc\u05d7 \u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05e2\u05db\u05e9\u05d9\u05d5','var(--sage)',async ()=>{
+        toast('\u05e9\u05d5\u05dc\u05d7...',4000);
+        const t=tdk();if(DB.emailLog)delete DB.emailLog[t];
+        await sendDailyDigest();toast('\u05e0\u05e9\u05dc\u05d7 \u2713');
+      },{width:'100%'}),
+    ])
+  ]));
+  const sentToday=DB.emailLog&&DB.emailLog[tdk()]==='sent';
+  main.appendChild(card([el('div',{style:{fontSize:'12px',color:'var(--clay)',display:'flex',gap:'8px',alignItems:'center'}},[
+    el('span',{style:{fontSize:'18px'}},sentToday?'\u2705':'\uD83D\uDCED'),
+    el('span',{},sentToday?'\u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05e0\u05e9\u05dc\u05d7 \u05d4\u05d9\u05d5\u05dd':'\u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05d8\u05e8\u05dd \u05e0\u05e9\u05dc\u05d7 \u05d4\u05d9\u05d5\u05dd')
+  ])],{background:'var(--mist)'}));
 }
 
 // START
