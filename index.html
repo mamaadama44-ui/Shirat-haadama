@@ -114,6 +114,20 @@ emailjs.init(EJS_KEY);
 const EMOJIS=['🧑‍🌾','👨‍🌾','👩‍🌾','🐓','🌿','🌻','🦎','🐇','🌾','🥕','🍅','🌺'];
 const COLS=['#C85A3A','#6a9a5a','#6b4a2a','#6a4a8e','#2a5a6e','#b8832a','#d4633a','#2a6e5a'];
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const GARDEN={
+  1:{field:['סלק','גזר','מנגולד','בצל ירוק/צהוב/סגול','קולרבי','שומר','חסה','כרוב','ברוקולי','כרובית','תות שדה','סלרי'],greenhouse:['אנפה'],herbs:[],sow:['סלק','גזר','חסה'],plant:['כרוב','ברוקולי','כרובית','תות שדה'],order:['זרעי אביב — הזמן מראש!'],notes:'חודש טוב לשתילת ירקות חורף'},
+  2:{field:['סלק','גזר','מלון','ביה','תירס','צנון','בצל','מנגולד','קולרבי','כרוב','ברוקולי','כרובית'],greenhouse:['אנפה','פלפל'],herbs:['סלרי','שמיר','כוסברה','פטרוזיליה'],sow:['סלק','גזר','תירס','פטרוזיליה'],plant:['פלפל (חממה)','כרובית','ברוקולי'],order:['שתילי פלפל ועגבנייה לחממה'],notes:'ניתן להתחיל זריעה בחממה לפלפל ועגבניות'},
+  3:{field:['סלק','בצל','מלון','ביה','תירס','צנונית','בצל ירוק','כוסברה','פטרוזיליה','תות שדה'],greenhouse:['עגבנייה','חציל','אבטיח','פלפל'],herbs:['לואיזה','מליסה','לבנדר','מרווה'],sow:['תירס','מלון','קישוא','עגבנייה (חממה)'],plant:['פלפל','חציל','תות שדה','עשבי תיבול'],order:['זרעי קיץ','שתילי עגבנייה','שתילי פלפל'],notes:'תחילת עונת האביב — עיקר פעילות הגינה'},
+  4:{field:['סלק','בצל','ביה','תירס','צנונית','בוטנים','כוסברה','פטרוזיליה'],greenhouse:['עגבנייה','מלון','אבטיח','חציל','פלפל','דלעת','שעועית','בטטה'],herbs:['לואיזה','מליסה','לבנדר','מרווה','בזיליקום','שמיר','כוסברה','קישוא'],sow:['בזיליקום','שעועית','דלעת','קישוא'],plant:['עגבנייה','פלפל','חציל','בטטה','אבטיח','מלון'],order:['דשן לעונת קיץ','חומרי השקיה'],notes:'חודש עמוס — השתלת רוב הירקות הקיציים'},
+  5:{field:['חמנייה','ביה','תירס'],greenhouse:['אבטיח','חציל','עגבנייה'],herbs:['קישוא','פטרוזיליה','שמיר','בזיליקום','כוסברה'],sow:['בזיליקום','תירס'],plant:['קישוא','חציל','עגבנייה'],order:[],notes:'אחרון לשתילת ירקות קיץ — לאחר מכן חם מדי'},
+  6:{field:['תירס'],greenhouse:[],herbs:[],sow:[],plant:[],order:['זרעי סתיו — הזמן מראש!'],notes:'⚠️ נמנעים משתילה בגלל חום קיצוני. חריג: ארטישוק'},
+  7:{field:[],greenhouse:[],herbs:[],sow:[],plant:[],order:['שתילי תות שדה לאוגוסט','זרעי חורף'],notes:'⚠️ חודש מנוחה — נמנעים מזריעה ושתילה. חריג: ארטישוק'},
+  8:{field:['גזר','צנון','סלק','בצל ירוק','פטרוזיליה','כוסברה','מנגולד'],greenhouse:['חסה','כרוב','כרובית','ברוקולי','תות שדה','בק צ׳וי','כייל','שעועית','עגבנייה'],herbs:['תרד','שמיר'],sow:['גזר','סלק','פטרוזיליה','חסה'],plant:['תות שדה','כרוב','ברוקולי'],order:['שתילי חורף','זרעי עלים'],notes:'תחילת עונת הסתיו — מתחילים שוב לזרוע'},
+  9:{field:['גזר','צנון','סלק','בצל','פטרוזיליה','כוסברה','מנגולד'],greenhouse:['חסה','כרוב','כרובית','ברוקולי','אנפה','תות שדה','בק צ׳וי','כייל','שעועית'],herbs:['תרד','שמיר','סלרי','כולרבי'],sow:['גזר','סלק','בצל','חסה','פטרוזיליה'],plant:['תות שדה','כרוב','ברוקולי','כרובית'],order:['שתילי חורף','בצל שתילה'],notes:'חודש עמוס — כמו מרץ אבל לעונת חורף'},
+  10:{field:['גזר','צנון','סלק','בצל','כייל','בק צ׳וי','שמיר','מנגולד'],greenhouse:['חסה','כרוב','כרובית','ברוקולי','אנפה','תות שדה'],herbs:['תרד','שמיר','סלרי','כולרבי','שעועית'],sow:['גזר','סלק','שמיר'],plant:['חסה','כרוב','תות שדה','כרובית'],order:['זרעי חורף נוספים'],notes:'חודש טוב לשתילת ירקות חורף ועשבי תיבול'},
+  11:{field:['אנפה','גזר','בצל','סלק','חסה'],greenhouse:['תות שדה'],herbs:[],sow:['גזר','סלק'],plant:['תות שדה','אנפה'],order:[],notes:'חודש חורף — ירקות עמידים לקור'},
+  12:{field:['סלק','גזר','מנגולד','בצל','קולרבי','שומר','חסה','כרוב','ברוקולי','כרובית'],greenhouse:['אנפה'],herbs:[],sow:['סלק','גזר','חסה'],plant:['כרוב','ברוקולי'],order:['זרעי אביב — הזמן מראש לפברואר!'],notes:'חודש חורף — בעיקר ירקות עלים ושורש'}
+};
 const AREAS={animals:{l:'🐓 בעלי חיים',c:'#d4633a'},forest:{l:'🌲 יער',c:'#2a6e3a'},nursery:{l:'🌱 משתלה',c:'#4a8a5a'},workshops:{l:'🎭 סדנאות',c:'#6a4a8e'},maint:{l:'🔧 תחזוקה',c:'#6b4a2a'}};
 const INV_CATS={animals:{l:'🐓 לול - בעלי חיים',c:'#d4633a'},nursery:{l:'🌱 משתלה',c:'#4a8a5a'},workshops:{l:'🎭 סדנאות',c:'#6a4a8e'},forest:{l:'🌲 יער',c:'#2a6e3a'},equipment:{l:'🔧 ציוד כללי',c:'#6b4a2a'},other:{l:'📦 כללי',c:'#7a7a7a'}};
 const PRI={high:{l:'גבוהה',c:'#C85A3A',pts:10},medium:{l:'בינונית',c:'#b8832a',pts:5},low:{l:'נמוכה',c:'#6a9a5a',pts:2}};
@@ -340,7 +354,7 @@ function renderApp(){
     el('div',{className:'prog-w'},[el('div',{className:'prog-bg'},[pf])]),tw
   ]);
   const main=el('div',{className:'app-main',id:'app-main'});
-  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'hrs',l:'⏱ שעות'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},...(ME.role==='מנהל'?[{id:'admin',l:'⚙️ ניהול'}]:[])];
+  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'hrs',l:'⏱ שעות'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 גינה'},...(ME.role==='מנהל'?[{id:'admin',l:'⚙️ ניהול'}]:[])];
   TABS.forEach(t=>{
     const b=el('button',{className:'tab-btn'+(t.id===TAB?' on':''),onclick:()=>{TAB=t.id;tw.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');renderTab(main,pf);}},t.l);
     tw.appendChild(b);
@@ -354,6 +368,8 @@ function renderApp(){
   setTimeout(()=>checkAndSendDailyDigest(),3000);
   // Check monthly summary
   setTimeout(()=>checkAndSendMonthlySummary(),8000);
+  // Check garden reminder
+  setTimeout(()=>checkAndSendGardenEmail(),12000);
 }
 
 function renderTab(mainEl,pfEl){
@@ -371,6 +387,7 @@ function renderTab(mainEl,pfEl){
   else if(TAB==='team')rTeam(main);
   else if(TAB==='jour')rJournal(main);
   else if(TAB==='sum')rSummary(main);
+  else if(TAB==='garden')rGarden(main);
   else if(TAB==='admin')rAdmin(main);
   if(pf){
     const today=tdk();const dayComps=DB.comps[today]||{};
@@ -1692,6 +1709,138 @@ function rSummary(main){
   }
 }
 
+function rGarden(main){
+  const now=new Date();
+  const CM=now.getMonth()+1; // 1-12
+  const CY=now.getFullYear();
+  const nextM=CM===12?1:CM+1;
+  const gCur=GARDEN[CM]||{field:[],greenhouse:[],herbs:[],sow:[],plant:[],order:[],notes:''};
+  const gNext=GARDEN[nextM]||{field:[],greenhouse:[],herbs:[],sow:[],plant:[],order:[],notes:''};
+
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'🌱 לוח זריעה ושתילה'));
+
+  // Current month card
+  const curCard=card([
+    el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700}},MONTHS[CM-1]+' '+CY),
+      el('span',{style:{background:'#e8f5e4',color:'var(--sage)',padding:'3px 10px',borderRadius:'10px',fontSize:'12px',fontWeight:700}},'החודש'),
+    ]),
+    gCur.notes?el('div',{style:{background:gCur.notes.startsWith('⚠️')?'#fff0ee':'#f0f8ee',borderRadius:'8px',padding:'8px 12px',marginBottom:'10px',fontSize:'12px',color:gCur.notes.startsWith('⚠️')?'var(--red)':'var(--sage)',fontWeight:600}},gCur.notes):'',
+    gCur.sow.length?el('div',{},[
+      el('div',{style:{fontWeight:700,fontSize:'13px',color:'var(--earth)',marginBottom:'5px'}},'🌰 לזריעה:'),
+      el('div',{style:{display:'flex',flexWrap:'wrap',gap:'5px',marginBottom:'10px'}},gCur.sow.map(s=>el('span',{style:{background:'rgba(106,154,90,.12)',color:'var(--sage)',padding:'3px 9px',borderRadius:'12px',fontSize:'12px',fontWeight:600}},s))),
+    ]):'',
+    gCur.plant.length?el('div',{},[
+      el('div',{style:{fontWeight:700,fontSize:'13px',color:'var(--earth)',marginBottom:'5px'}},'🌿 לשתילה:'),
+      el('div',{style:{display:'flex',flexWrap:'wrap',gap:'5px',marginBottom:'10px'}},gCur.plant.map(s=>el('span',{style:{background:'rgba(45,26,8,.08)',color:'var(--soil)',padding:'3px 9px',borderRadius:'12px',fontSize:'12px',fontWeight:600}},s))),
+    ]):'',
+    gCur.herbs.length?el('div',{},[
+      el('div',{style:{fontWeight:700,fontSize:'13px',color:'var(--earth)',marginBottom:'5px'}},'🌿 עשבי תיבול:'),
+      el('div',{style:{display:'flex',flexWrap:'wrap',gap:'5px',marginBottom:'10px'}},gCur.herbs.map(s=>el('span',{style:{background:'rgba(184,131,42,.12)',color:'var(--straw)',padding:'3px 9px',borderRadius:'12px',fontSize:'12px',fontWeight:600}},s))),
+    ]):'',
+    (gCur.field.length||gCur.greenhouse.length)?el('details',{style:{marginTop:'4px'}},[
+      el('summary',{style:{fontSize:'12px',color:'var(--clay)',cursor:'pointer',padding:'4px 0'}},'כל הירקות המתאימים החודש ▾'),
+      el('div',{style:{marginTop:'8px'}},[
+        gCur.field.length?el('div',{style:{marginBottom:'6px'}},[el('div',{style:{fontSize:'11px',fontWeight:700,color:'var(--clay)',marginBottom:'3px'}},'🌾 שדה פתוח:'),el('div',{style:{fontSize:'12px',color:'var(--clay)'}},gCur.field.join(' · '))]):'',
+        gCur.greenhouse.length?el('div',{},[el('div',{style:{fontSize:'11px',fontWeight:700,color:'var(--clay)',marginBottom:'3px'}},'🏠 חממה:'),el('div',{style:{fontSize:'12px',color:'var(--clay)'}},gCur.greenhouse.join(' · '))]):'',
+      ])
+    ]):'',
+  ]);
+  main.appendChild(curCard);
+
+  // Order reminder
+  if(gCur.order&&gCur.order.length){
+    main.appendChild(card([
+      el('div',{style:{display:'flex',gap:'8px',alignItems:'flex-start'}},[
+        el('span',{style:{fontSize:'20px'}},'🛒'),
+        el('div',{style:{flex:1}},[
+          el('div',{style:{fontWeight:700,fontSize:'13px',marginBottom:'5px'}},'הזמן עכשיו לחודש הבא:'),
+          ...gCur.order.map(o=>el('div',{style:{fontSize:'12px',color:'var(--clay)',padding:'2px 0'}},'• '+o))
+        ])
+      ])
+    ],{background:'#fff8ee',border:'1px solid #e8b84b44'}));
+  }
+
+  // Next month preview
+  const nextCard=card([
+    el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700,color:'var(--clay)'}},MONTHS[nextM-1]+' — תצוגה מקדימה'),
+      el('span',{style:{background:'var(--mist)',color:'var(--clay)',padding:'2px 8px',borderRadius:'10px',fontSize:'11px'}},'חודש הבא'),
+    ]),
+    gNext.notes?el('div',{style:{fontSize:'11px',color:gNext.notes.startsWith('⚠️')?'var(--red)':'var(--sage)',marginBottom:'6px',fontStyle:'italic'}},gNext.notes):'',
+    gNext.sow.length?el('div',{style:{fontSize:'12px',marginBottom:'4px'}},[el('span',{style:{fontWeight:600}},'זריעה: '),el('span',{style:{color:'var(--clay)'}},gNext.sow.join(', '))]):'',
+    gNext.plant.length?el('div',{style:{fontSize:'12px'}},[ el('span',{style:{fontWeight:600}},'שתילה: '),el('span',{style:{color:'var(--clay)'}},gNext.plant.join(', '))]):'',
+  ],{background:'var(--mist)',border:'none'});
+  main.appendChild(nextCard);
+
+  // Season overview
+  const seasons=[
+    {name:'🌸 אביב',months:[3,4,5],color:'#6a9a5a'},
+    {name:'☀️ קיץ',months:[6,7,8],color:'#b8832a'},
+    {name:'🍂 סתיו',months:[9,10,11],color:'#d4633a'},
+    {name:'❄️ חורף',months:[12,1,2],color:'#2a5a6e'},
+  ];
+  const seasonCard=card([el('div',{className:'card-t'},'לוח עונות שנתי')]);
+  seasons.forEach(s=>{
+    const allPlants=[...new Set(s.months.flatMap(m=>[...(GARDEN[m]?.sow||[]),...(GARDEN[m]?.plant||[])]))];
+    seasonCard.appendChild(el('div',{style:{marginBottom:'10px'}},[
+      el('div',{style:{fontWeight:700,fontSize:'13px',color:s.color,marginBottom:'4px'}},s.name),
+      el('div',{style:{display:'flex',flexWrap:'wrap',gap:'4px'}},allPlants.slice(0,12).map(p=>el('span',{style:{background:s.color+'15',color:s.color,padding:'2px 7px',borderRadius:'10px',fontSize:'11px'}},p))),
+    ]));
+  });
+  main.appendChild(seasonCard);
+
+  // Send garden email button (manager)
+  if(ME.role==='\u05de\u05e0\u05d4\u05dc'){
+    main.appendChild(btn('📧 שלח עדכון גינה עכשיו','var(--sage)',async ()=>{
+      toast('שולח...',3000);
+      const ok=await sendGardenEmail(CM,CY);
+      toast(ok?'נשלח \u2713':'שגיאה בשליחה');
+    },{width:'100%',marginTop:'10px'}));
+  }
+}
+
+async function sendGardenEmail(month,year){
+  const g=GARDEN[month]||{};
+  const gNext=GARDEN[month===12?1:month+1]||{};
+  const nextMName=MONTHS[month===12?0:month];
+
+  const lines=[
+    '\uD83C\uDF31 עדכון גינה — '+MONTHS[month-1]+' '+year,
+    '══════════════════════════',
+    '',
+  ];
+
+  if(g.notes)lines.push(g.notes,'');
+  if(g.sow.length){lines.push('\uD83C\uDF30 לזריעה החודש:');g.sow.forEach(s=>lines.push('  • '+s));lines.push('');}
+  if(g.plant.length){lines.push('\uD83C\uDF3F לשתילה החודש:');g.plant.forEach(s=>lines.push('  • '+s));lines.push('');}
+  if(g.herbs.length){lines.push('\uD83C\uDF3F עשבי תיבול:');g.herbs.forEach(s=>lines.push('  • '+s));lines.push('');}
+  if(g.field.length){lines.push('\uD83C\uDF3E שדה פתוח — כל האפשרויות:');lines.push('  '+g.field.join(', '));lines.push('');}
+  if(g.greenhouse.length){lines.push('\uD83C\uDFE0 חממה — כל האפשרויות:');lines.push('  '+g.greenhouse.join(', '));lines.push('');}
+
+  if(g.order&&g.order.length){
+    lines.push('\uD83D\uDED2 הזמן לקראת '+nextMName+':');
+    g.order.forEach(o=>lines.push('  • '+o));
+    lines.push('');
+  }
+
+  if(gNext.sow&&gNext.sow.length){
+    lines.push('\uD83D\uDCC5 תצוגה מקדימה ל'+nextMName+':');
+    if(gNext.sow.length)lines.push('  זריעה: '+gNext.sow.join(', '));
+    if(gNext.plant&&gNext.plant.length)lines.push('  שתילה: '+gNext.plant.join(', '));
+    lines.push('');
+  }
+
+  lines.push('\uD83C\uDF31 שירת האדמה');
+
+  const admin=DB.users.find(u=>u.role==='\u05de\u05e0\u05d4\u05dc');
+  const gardenWorker=DB.users.find(u=>u.name&&(u.name.includes('\u05d2\u05d9\u05e0\u05d4')||u.name.includes('\u05d2\u05df')));
+  const recipients=[admin,...(gardenWorker&&gardenWorker.id!==admin?.id?[gardenWorker]:[])].filter(u=>u&&u.email);
+
+  const results=await Promise.all(recipients.map(u=>sendEmail(u.email,u.name,'\uD83C\uDF31 עדכון גינה — '+MONTHS[month-1]+' '+year,lines.join('\n'))));
+  return results.some(r=>r);
+}
+
 function rAdmin(main){
   main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'⚙️ ניהול'));
   DB.users.forEach(user=>{
@@ -2017,6 +2166,37 @@ async function sendMonthlySummary(){
     DB.emailLog['monthly-'+mKey]='sent';
     save();
     toast('סיכום חודשי נשלח למייל ✓',4000);
+  }
+}
+
+async function checkAndSendGardenEmail(){
+  if(ME.role!=='\u05de\u05e0\u05d4\u05dc') return;
+  const now=new Date();
+  const CM=now.getMonth()+1;
+  const CY=now.getFullYear();
+  const dayOfMonth=now.getDate();
+  const mKey=CY+'-'+String(CM).padStart(2,'0');
+
+  // Send on day 1 of month
+  const isFirstDay=dayOfMonth===1;
+  // Send 7 days before end of month (reminder for next month)
+  const lastDay=new Date(CY,CM,0).getDate();
+  const isReminderDay=dayOfMonth===lastDay-6;
+
+  if(!isFirstDay&&!isReminderDay) return;
+
+  const emailKey='garden-'+(isFirstDay?'start':'reminder')+'-'+mKey;
+  if(DB.emailLog&&DB.emailLog[emailKey]==='sent') return;
+
+  const targetMonth=isFirstDay?CM:(CM===12?1:CM+1);
+  const targetYear=isFirstDay?CY:(CM===12?CY+1:CY);
+
+  const ok=await sendGardenEmail(targetMonth,targetYear);
+  if(ok){
+    if(!DB.emailLog)DB.emailLog={};
+    DB.emailLog[emailKey]='sent';
+    save();
+    if(isReminderDay)toast('\uD83C\uDF31 תזכורת גינה נשלחה — הכנה לחודש הבא',4000);
   }
 }
 
