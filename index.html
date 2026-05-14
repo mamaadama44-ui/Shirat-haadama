@@ -2054,336 +2054,62 @@ function showPlantDetails(name,p){
 }
 
 async function sendGardenEmail(month,year){
-  const g=GARDEN[month]||{};
+  const g=GARDEN[month]||{field:[],greenhouse:[],herbs:[],sow:[],plant:[],order:[],notes:''};
   const gNext=GARDEN[month===12?1:month+1]||{};
   const nextMName=MONTHS[month===12?0:month];
+  const monthName=MONTHS[month-1];
+  const sep='----------------------------';
+  const parts=[];
 
-  const lines=[
-    '\uD83C\uDF31 עדכון גינה — '+MONTHS[month-1]+' '+year,\n    '══════════════════════════',\n    '',\n  ];\n\n  if(g.notes)lines.push(g.notes,'');\n  if(g.sow.length){lines.push('\uD83C\uDF30 לזריעה החודש:');g.sow.forEach(s=>lines.push('  • '+s));lines.push('');}\n  if(g.plant.length){lines.push('\uD83C\uDF3F לשתילה החודש:');g.plant.forEach(s=>lines.push('  • '+s));lines.push('');}\n  if(g.herbs.length){lines.push('\uD83C\uDF3F עשבי תיבול:');g.herbs.forEach(s=>lines.push('  • '+s));lines.push('');}\n  if(g.field.length){lines.push('\uD83C\uDF3E שדה פתוח — כל האפשרויות:');lines.push('  '+g.field.join(', '));lines.push('');}\n  if(g.greenhouse.length){lines.push('\uD83C\uDFE0 חממה — כל האפשרויות:');lines.push('  '+g.greenhouse.join(', '));lines.push('');}\n\n  if(g.order&&g.order.length){\n    lines.push('\uD83D\uDED2 הזמן לקראת '+nextMName+':');\n    g.order.forEach(o=>lines.push('  • '+o));\n    lines.push('');\n  }\n\n  if(gNext.sow&&gNext.sow.length){\n    lines.push('\uD83D\uDCC5 תצוגה מקדימה ל'+nextMName+':');\n    if(gNext.sow.length)lines.push('  זריעה: '+gNext.sow.join(', '));\n    if(gNext.plant&&gNext.plant.length)lines.push('  שתילה: '+gNext.plant.join(', '));\n    lines.push('');\n  }\n\n  lines.push('\uD83C\uDF31 שירת האדמה');\n\n  const admin=DB.users.find(u=>u.role==='\u05de\u05e0\u05d4\u05dc');\n  const gardenWorker=DB.users.find(u=>u.name&&(u.name.includes('\u05d2\u05d9\u05e0\u05d4')||u.name.includes('\u05d2\u05df')));\n  const recipients=[admin,...(gardenWorker&&gardenWorker.id!==admin?.id?[gardenWorker]:[])].filter(u=>u&&u.email);\n\n  const results=await Promise.all(recipients.map(u=>sendEmail(u.email,u.name,'\uD83C\uDF31 עדכון גינה — '+MONTHS[month-1]+' '+year,lines.join('\n'))));\n  return results.some(r=>r);\n}\n\nfunction rAdmin(main){\n  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'⚙️ ניהול'));
-  DB.users.forEach(user=>{
-    const uc=el('div',{style:{background:'var(--white)',borderRadius:'10px',padding:'12px',marginBottom:'8px',boxShadow:'0 2px 12px rgba(26,18,5,.12)',display:'flex',alignItems:'center',gap:'10px'}});
-    uc.appendChild(el('div',{style:{width:'38px',height:'38px',borderRadius:'50%',background:user.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px'}},user.emoji));
-    const ui=el('div',{style:{flex:1}});
-    ui.appendChild(el('div',{style:{fontWeight:700,fontSize:'14px'}},user.name));
-    ui.appendChild(el('div',{style:{fontSize:'11px',color:user.color,fontWeight:600}},user.role));
-    ui.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)'}},`${user.email} · ${gp(user.id)}\u2605`));
-    uc.appendChild(ui);
-    const acts=el('div',{style:{display:'flex',flexDirection:'column',gap:'4px'}});
-    const rb=el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'4px 9px',fontSize:'10px',fontWeight:600,cursor:'pointer',color:'var(--soil)',fontFamily:'inherit'}},user.role==='מנהל'?'→ עובד':'→ מנהל');
-    rb.onclick=()=>{user.role=user.role==='מנהל'?'עובד':'מנהל';save();toast('תפקיד שונה ✓');renderTab();};
-    acts.appendChild(rb);
-    if(user.id!==ME.id){
-      const db2=el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'16px'}},'🗑');
-      db2.onclick=()=>{if(!confirm('למחוק?'))return;DB.users=DB.users.filter(u=>u.id!==user.id);save();toast('נמחק');renderTab();};
-      acts.appendChild(db2);
-    }
-    uc.appendChild(acts);main.appendChild(uc);
-  });
+  parts.push('\uD83C\uDF31 \u05e2\u05d3\u05db\u05d5\u05df \u05e2\u05d5\u05e0\u05d5\u05ea \u05d5\u05d6\u05e8\u05d9\u05e2\u05d4 \u2014 '+monthName+' '+year);
+  parts.push(sep);
+  if(g.notes)parts.push(g.notes);
+  parts.push('');
 
-  const ac=card([
-    el('div',{className:'card-t'},'➕ הוסף עובד חדש'),
-    el('div',{style:{fontSize:'12px',color:'var(--clay)',marginBottom:'10px',background:'var(--mist)',borderRadius:'7px',padding:'8px 10px'}},'רק מנהל יכול ליצור חשבונות חדשים')
-  ]);
-  const ni=finp({placeholder:'שם מלא'});
-  const ei=finp({type:'email',placeholder:'email@sheirat.com'});
-  const pi=finp({type:'password',placeholder:'לפחות 4 תווים'});
-  const rl=fsel([['עובד','עובד'],['מנהל','מנהל']],'עובד');
-  let newE=EMOJIS[0];
-  const epg=el('div',{className:'ep-grid'});
-  EMOJIS.forEach((e,i)=>{
-    const s=el('span',{className:'ep-item'+(i===0?' sel':'')},e);
-    s.onclick=()=>{epg.querySelectorAll('.ep-item').forEach(x=>x.classList.remove('sel'));s.classList.add('sel');newE=e;};
-    epg.appendChild(s);
-  });
-  const sv2=btn('✓ הוסף עובד','var(--red)',async ()=>{
-    if(!ni.value.trim()||!ei.value||!pi.value){toast('מלא את כל השדות');return;}
-    if(DB.users.find(u=>u.email===ei.value.toLowerCase())){toast('מייל כבר קיים');return;}
-    if(pi.value.length<4){toast('סיסמה קצרה');return;}
-    const u={id:'u'+Date.now(),name:ni.value.trim(),email:ei.value.toLowerCase(),pass:pi.value,role:rl.value,emoji:newE,color:COLS[DB.users.length%COLS.length]};
-    DB.users.push(u);
-    save();
-    const cc=el('div',{style:{background:'#e8f5e4',border:'1px solid rgba(106,154,90,.4)',borderRadius:'12px',padding:'14px',marginBottom:'10px'}});
-    cc.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:900,color:'var(--sage)',marginBottom:'8px'}},'✅ עובד חדש נוצר!'));
-    cc.appendChild(el('div',{style:{background:'var(--white)',borderRadius:'8px',padding:'12px',fontFamily:'monospace',fontSize:'13px',lineHeight:2}},`🌾 שירת האדמה\n👤 ${u.name}\n📧 ${u.email}\n🔑 ${u.pass}`));
-    const cb2=btn('סגור','var(--mist)',()=>cc.remove(),{color:'var(--soil)',width:'100%',marginTop:'8px',fontSize:'12px'});
-    cc.appendChild(cb2);ac.before(cc);
-    ni.value='';ei.value='';pi.value='';
-    toast(`${u.name} נוסף/ה ✓`);renderTab();
-  },{width:'100%',padding:'12px',marginTop:'9px'});
-  ac.appendChild(el('div',{className:'flab'},'שם'));ac.appendChild(ni);
-  ac.appendChild(el('div',{className:'flab'},'מייל'));ac.appendChild(ei);
-  ac.appendChild(el('div',{className:'flab'},'סיסמה'));ac.appendChild(pi);
-  ac.appendChild(el('div',{className:'flab'},'תפקיד'));ac.appendChild(rl);
-  ac.appendChild(el('div',{className:'flab'},'אמוג׳י'));ac.appendChild(epg);
-  ac.appendChild(sv2);
-  main.appendChild(ac);
-
-  // Email management section
-  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,margin:'16px 0 10px'}},'📧 שליחת מיילים'));
-
-  // Manual daily digest
-  const emailCard=card([
-    el('div',{className:'card-t'},'📬 שליחת סיכום יומי'),
-    el('div',{style:{fontSize:'12px',color:'var(--clay)',marginBottom:'10px'}},'שולח לכל עובד את המשימות שלו להיום, ולמנהל סיכום כולל.'),
-    btn('📊 שלח סיכום חודשי עכשיו','var(--earth)',async ()=>{
-      toast('מכין סיכום חודשי...',4000);
-      // Reset monthly log to allow resend
-      const now2=new Date();
-      const mKey2=now2.getFullYear()+'-'+String(now2.getMonth()+1).padStart(2,'0');
-      if(DB.emailLog)delete DB.emailLog['monthly-'+mKey2];
-      await sendMonthlySummary();
-    },{width:'100%',marginBottom:'8px'}),
-    btn('שלח סיכום יומי עכשיו','var(--sage)',async ()=>{
-      toast('שולח מיילים...',4000);
-      const ok=await sendDailyDigest();
-      // Reset today's log to allow resend
-      if(!DB.emailLog)DB.emailLog={};
-      delete DB.emailLog[tdk()];
-      const result=await sendDailyDigest();
-      toast(result?'מיילים נשלחו ✓':'שגיאה בשליחה');
-    },{width:'100%'})
-  ]);
-  main.appendChild(emailCard);
-
-  // Send reminder to specific user
-  const remCard=card([el('div',{className:'card-t'},'🔔 שלח תזכורת לעובד')]);
-  let remUser='',remTask='';
-  const userSel=fsel([['','בחר עובד...'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])],'',v=>{remUser=v;updateTaskSel();});
-  const taskSel=el('select',{className:'finp'});
-  const updateTaskSel=()=>{
-    taskSel.innerHTML='';
-    const u=gu(remUser);
-    const myTasks=[...DB.rT,...DB.oT.filter(t=>!t.done)].filter(t=>!remUser||t.uid===remUser);
-    [['','בחר משימה...'],...myTasks.map(t=>[t.id,t.title])].forEach(([v,l])=>{
-      const o=el('option',{value:v},l);taskSel.appendChild(o);
-    });
-  };
-  updateTaskSel();
-  taskSel.addEventListener('change',e=>{remTask=e.target.value;});
-  const msgInp=fta({placeholder:'הוסף הודעה אישית (אופציונלי)',style:{minHeight:'60px',marginTop:'8px'}});
-  remCard.appendChild(el('div',{className:'flab'},'עובד'));remCard.appendChild(userSel);
-  remCard.appendChild(el('div',{className:'flab'},'משימה'));remCard.appendChild(taskSel);
-  remCard.appendChild(msgInp);
-  remCard.appendChild(btn('שלח תזכורת','var(--straw)',async ()=>{
-    const u=gu(remUser);
-    if(!u){toast('בחר עובד');return;}
-    if(!u.email){toast('לעובד זה אין מייל במערכת');return;}
-    const t=remTask?at().find(x=>x.id===remTask):null;
-    const extra=msgInp.value.trim();
-    const msgLines=['שלום '+u.name+',',''];
-    if(t){
-      const tArea=AREAS[t.area];
-      msgLines.push('תזכורת למשימה:','📋 '+t.title);
-      if(tArea)msgLines.push('📍 '+tArea.l);
-      if(t.scheduledDate)msgLines.push('📅 '+fd(t.scheduledDate)+(t.scheduledTime?' בשעה '+t.scheduledTime:''));
-    } else {
-      msgLines.push('תזכורת מהמנהל:');
-    }
-    if(extra){msgLines.push('');msgLines.push(extra);}
-    msgLines.push('','🌾 שירת האדמה');
-    const msg=msgLines.join('\n');
-    toast('שולח...',3000);
-    const ok=await sendEmail(u.email,u.name,t?'תזכורת: '+t.title:'תזכורת מהחווה',msg);
-    toast(ok?'תזכורת נשלחה ✓':'שגיאה — בדוק מייל העובד');
-  },{width:'100%',marginTop:'8px',color:'var(--earth)'}));
-  main.appendChild(remCard);
-
-  // Email log
-  const sentToday=DB.emailLog&&DB.emailLog[tdk()]==='sent';
-  main.appendChild(card([
-    el('div',{style:{fontSize:'12px',color:'var(--clay)',display:'flex',gap:'8px',alignItems:'center'}},[
-      el('span',{style:{fontSize:'18px'}},sentToday?'✅':'📭'),
-      el('span',{},sentToday?'סיכום יומי נשלח היום':'סיכום יומי טרם נשלח היום')
-    ])
-  ],{background:'var(--mist)'}));
-}
-
-
-// ── EMAIL FUNCTIONS ──────────────────────────────────────────────────────────
-async function sendEmail(toEmail, toName, subject, message){
-  try{
-    await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
-      to_email: toEmail,
-      name: toName,
-      subject: subject,
-      message: message,
-      email: 'mamaadama44@gmail.com'
-    });
-    return true;
-  } catch(e){
-    console.error('Email error:', e);
-    return false;
+  if(g.sow&&g.sow.length){
+    parts.push('\uD83C\uDF30 \u05dc\u05d6\u05e8\u05d9\u05e2\u05d4 \u05d4\u05d7\u05d5\u05d3\u05e9:');
+    g.sow.forEach(s=>parts.push('  \u2022 '+s+(PLANTS[s]?' (\u05e2\u05d5\u05de\u05e7: '+PLANTS[s].depth+', \u05e8\u05d9\u05d5\u05d5\u05d7: '+PLANTS[s].spacing+')':'')));
+    parts.push('');
   }
-}
-
-async function sendDailyDigest(){
-  // Check if already sent today
-  const today=tdk();
-  if(DB.emailLog&&DB.emailLog[today]==='sent') return;
-  
-  const todayTasks=[...DB.rT,...DB.oT.filter(t=>!t.done)];
-  const scheduled=DB.oT.filter(t=>t.scheduledDate===today&&!t.done);
-  
-  // Send to each user with tasks
-  const promises=DB.users.filter(u=>u.email).map(async u=>{
-    const myTasks=todayTasks.filter(t=>t.uid===u.id);
-    const myScheduled=scheduled.filter(t=>t.uid===u.id);
-    const allMyTasks=[...new Set([...myTasks,...myScheduled])];
-    
-    if(!allMyTasks.length&&ME.id!==u.id) return; // skip users with no tasks (except admin gets all)
-    
-    const taskList=todayTasks.map(t=>'• '+t.title+' ['+( AREAS[t.area]?.l||t.area)+']'+(t.scheduledTime?' בשעה '+t.scheduledTime:'')).join('\n');
-    
-    const dateStr=new Date().toLocaleDateString('he-IL');
-    let msg='';
-    if(u.role==='מנהל'){
-      const lines=['שלום '+u.name+',','','סיכום משימות להיום — '+dateStr+':',''];
-      todayTasks.slice(0,15).forEach(t=>{const w=t.uid?gu(t.uid):null;lines.push('• '+t.title+(w?' — '+w.name:''));});
-      lines.push('','סהכ: '+todayTasks.length+' משימות');
-      msg=lines.join('\n');
-    } else if(allMyTasks.length){
-      const lines=['שלום '+u.name+',','','המשימות שלך להיום — '+dateStr+':',''];
-      allMyTasks.forEach(t=>lines.push('• '+t.title+(t.scheduledTime?' בשעה '+t.scheduledTime:'')));
-      lines.push('','בהצלחה! 🌾');
-      msg=lines.join('\n');
-    } else {
-      msg='שלום '+u.name+',\n\nאין לך משימות מוגדרות להיום — '+dateStr+'.\n\nיום טוב! 🌾';
-    }
-    return sendEmail(u.email, u.name, 'סיכום משימות יומי', msg);
-  });
-  
-  await Promise.all(promises);
-  if(!DB.emailLog)DB.emailLog={};
-  DB.emailLog[today]='sent';
-  save();
-  return true;
-}
-
-async function sendReminder(task, user){
-  if(!user||!user.email) return false;
-  const area=AREAS[task.area];
-  const lines=['שלום '+user.name+',','','תזכורת למשימה:','📋 '+task.title];
-  if(area) lines.push('📍 '+area.l);
-  if(task.scheduledDate) lines.push('📅 '+fd(task.scheduledDate)+(task.scheduledTime?' בשעה '+task.scheduledTime:''));
-  lines.push('','אנא וודא שהמשימה מבוצעת בזמן.','','🌾 שירת האדמה');
-  const msg=lines.join('\n');
-  return sendEmail(user.email, user.name, 'תזכורת: '+task.title, msg);
-}
-
-async function checkAndSendDailyDigest(){
-  const today=tdk();
-  if(DB.emailLog&&DB.emailLog[today]==='sent') return;
-  const hour=new Date().getHours();
-  if(hour>=6&&hour<=10&&ME.role==='מנהל'){
-    await sendDailyDigest();
+  if(g.plant&&g.plant.length){
+    parts.push('\uD83C\uDF3F \u05dc\u05e9\u05ea\u05d9\u05dc\u05d4 \u05d4\u05d7\u05d5\u05d3\u05e9:');
+    g.plant.forEach(s=>parts.push('  \u2022 '+s+(PLANTS[s]?' (\u05d6\u05de\u05df \u05dc\u05e7\u05e6\u05d9\u05e8: '+PLANTS[s].harvest+')':'')));
+    parts.push('');
   }
-}
-
-async function sendMonthlySummary(){
-  const now=new Date();
-  const HM2=now.getMonth();
-  const HY2=now.getFullYear();
-  const mKey=HY2+'-'+String(HM2+1).padStart(2,'0');
-
-  // Check if already sent this month
-  if(DB.emailLog&&DB.emailLog['monthly-'+mKey]==='sent') return;
-
-  // Only send on last 2 days of month or first day of next month
-  const lastDay=new Date(HY2,HM2+1,0).getDate();
-  const dayOfMonth=now.getDate();
-  const isLastDays=(dayOfMonth>=lastDay-1)||(dayOfMonth===1&&HM2>0);
-  if(!isLastDays) return;
-
-  const mPrefix=mKey+'-';
-  const monthNames=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-  const monthName=monthNames[HM2];
-
-  // Hours per user
-  const uH={};
-  (DB.hoursLog||[]).filter(h=>h.date.startsWith(mPrefix)).forEach(h=>{
-    if(!uH[h.uid])uH[h.uid]=0;
-    uH[h.uid]+=ch(h.start,h.end);
-  });
-  const totalH=Object.values(uH).reduce((a,b)=>a+b,0);
-
-  // Tasks done
-  const monthKeys=Object.keys(DB.comps||{}).filter(k=>k.startsWith(mPrefix));
-  const totalDone=monthKeys.reduce((s,k)=>s+Object.keys(DB.comps[k]).length,0);
-
-  // Maintenance costs
-  const maintMonth=(DB.maintLog||[]).filter(l=>{
-    const d=new Date(l.closedAt);
-    return d.getFullYear()===HY2&&d.getMonth()===HM2;
-  });
-  const totalCost=maintMonth.reduce((s,l)=>s+(l.cost||0),0);
-
-  // Scores
-  const ranked=DB.users.map(u=>({
-    name:u.name,emoji:u.emoji,
-    pts:gp(u.id),
-    hrs:(uH[u.id]||0).toFixed(1),
-    tasks:monthKeys.reduce((s,k)=>s+Object.values(DB.comps[k]||{}).filter(v=>v===u.id).length,0)
-  })).sort((a,b)=>b.pts-a.pts);
-
-  // Projects status
-  const activeProjects=DB.projects.filter(p=>p.status==='active');
-
-  // Build email
-  const lines=[
-    'שלום,',
-    '',
-    'סיכום חודשי — '+monthName+' '+HY2,
-    '═══════════════════════════',
-    '',
-    '⏱ שעות עבודה:',
-    'סה"כ: '+totalH.toFixed(1)+' שעות',
-  ];
-
-  ranked.forEach(u=>{
-    lines.push('  '+u.emoji+' '+u.name+': '+u.hrs+" ש' | "+u.tasks+' משימות | '+u.pts+' נקודות');
-  });
-
-  lines.push('','✅ משימות שבוצעו: '+totalDone);
-  lines.push('');
-
-  if(activeProjects.length){
-    lines.push('🗂 פרויקטים פעילים:');
-    activeProjects.forEach(p=>{
-      const tasks=(p.taskIds||[]).map(id=>([...DB.rT,...DB.oT]).find(t=>t.id===id)).filter(Boolean);
-      const today2=tdk();
-      const done=tasks.filter(t=>DB.comps[today2]?.[t.id]||t.done).length;
-      const pct=Math.round(done/Math.max(tasks.length,1)*100);
-      lines.push('  • '+p.title+' — '+pct+'%'+(p.endDate?' (יעד: '+p.endDate+')':''));
-    });
-    lines.push('');
+  if(g.herbs&&g.herbs.length){
+    parts.push('\uD83C\uDF3F \u05e2\u05e9\u05d1\u05d9 \u05ea\u05d9\u05d1\u05d5\u05dc:');
+    g.herbs.forEach(s=>parts.push('  \u2022 '+s));
+    parts.push('');
   }
-
-  if(maintMonth.length){
-    lines.push('🔧 תחזוקה שבוצעה:');
-    maintMonth.forEach(l=>lines.push('  • '+l.title+' ('+l.closedByName+')'+(l.cost?' — '+l.cost+String.fromCharCode(8362):'')));
-    if(totalCost)lines.push('  סה"כ עלויות תחזוקה: '+totalCost+String.fromCharCode(8362));
-    lines.push('');
+  if(g.field&&g.field.length){
+    parts.push('\uD83C\uDF3E \u05e9\u05d3\u05d4 \u05e4\u05ea\u05d5\u05d7 \u2014 \u05db\u05dc \u05d4\u05d0\u05e4\u05e9\u05e8\u05d5\u05d9\u05d5\u05ea:');
+    parts.push('  '+g.field.join(', '));
+    parts.push('');
   }
-
-  const shortage=DB.inv.filter(i=>i.qty<i.minQty);
-  if(shortage.length){
-    lines.push('⚠️ מלאי חסר ('+shortage.length+' פריטים):');
-    shortage.forEach(i=>lines.push('  • '+i.icon+' '+i.name+' — יש: '+i.qty+' '+i.unit+' (מינ: '+i.minQty+')'));
-    lines.push('');
+  if(g.greenhouse&&g.greenhouse.length){
+    parts.push('\uD83C\uDFE0 \u05d7\u05de\u05de\u05d4:');
+    parts.push('  '+g.greenhouse.join(', '));
+    parts.push('');
   }
-
-  lines.push('🌾 שירת האדמה');
-
-  const admin=DB.users.find(u=>u.role==='מנהל');
-  if(!admin||!admin.email) return;
-
-  const ok=await sendEmail(admin.email, admin.name, 'סיכום חודשי — '+monthName+' '+HY2, lines.join('\n'));
-  if(ok){
-    if(!DB.emailLog)DB.emailLog={};
-    DB.emailLog['monthly-'+mKey]='sent';
-    save();
-    toast('סיכום חודשי נשלח למייל ✓',4000);
+  if(g.order&&g.order.length){
+    parts.push('\uD83D\uDED2 \u05d4\u05d6\u05de\u05df \u05e2\u05db\u05e9\u05d9\u05d5 \u05dc'+nextMName+':');
+    g.order.forEach(o=>parts.push('  \u2022 '+o));
+    parts.push('');
   }
+  if(gNext.sow&&gNext.sow.length){
+    parts.push('\uD83D\uDCC5 \u05ea\u05e6\u05d5\u05d2\u05d4 \u05de\u05e7\u05d3\u05d9\u05de\u05d4 \u05dc'+nextMName+':');
+    if(gNext.sow.length)parts.push('  \u05d6\u05e8\u05d9\u05e2\u05d4: '+gNext.sow.join(', '));
+    if(gNext.plant&&gNext.plant.length)parts.push('  \u05e9\u05ea\u05d9\u05dc\u05d4: '+gNext.plant.join(', '));
+    parts.push('');
+  }
+  parts.push('\uD83C\uDF31 \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4');
+
+  const msg=parts.join('\n');
+  const subj='\uD83C\uDF31 \u05e2\u05d3\u05db\u05d5\u05df \u05e2\u05d5\u05e0\u05d5\u05ea \u2014 '+monthName+' '+year;
+  const recipients=DB.users.filter(u=>u.email);
+  if(!recipients.length)return false;
+  const results=await Promise.all(recipients.map(u=>sendEmail(u.email,u.name,subj,msg)));
+  return results.some(r=>r);
 }
 
 async function checkAndSendGardenEmail(){
