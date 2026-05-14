@@ -354,7 +354,7 @@ function renderApp(){
     el('div',{className:'prog-w'},[el('div',{className:'prog-bg'},[pf])]),tw
   ]);
   const main=el('div',{className:'app-main',id:'app-main'});
-  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'hrs',l:'⏱ שעות'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 גינה'},...(ME.role==='מנהל'?[{id:'admin',l:'⚙️ ניהול'}]:[])];
+  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות & שעות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 גינה'},...(ME.role==='מנהל'?[{id:'admin',l:'⚙️ ניהול'}]:[])];
   TABS.forEach(t=>{
     const b=el('button',{className:'tab-btn'+(t.id===TAB?' on':''),onclick:()=>{TAB=t.id;tw.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');renderTab(main,pf);}},t.l);
     tw.appendChild(b);
@@ -381,7 +381,6 @@ function renderTab(mainEl,pfEl){
   else if(TAB==='act')rActivity(main);
   else if(TAB==='inv')rInventory(main);
   else if(TAB==='maint')rMaintenance(main);
-  else if(TAB==='hrs')rHours(main);
   else if(TAB==='score')rScore(main);
   else if(TAB==='proj')rProjects(main);
   else if(TAB==='team')rTeam(main);
@@ -1132,36 +1131,89 @@ function rScore(main){
 }
 
 function rTeam(main){
-  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'👥 הצוות'));
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'👥 צוות ושעות עבודה'));
+
+  const today=tdk();
+  const mPrefix=`${HY}-${String(HM+1).padStart(2,'0')}`;
+
+  // Month nav
+  const nav=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}});
+  nav.appendChild(el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer'},onclick:()=>{HM--;if(HM<0){HM=11;HY--;}renderTab();}},'◀'));
+  nav.appendChild(el('span',{style:{fontWeight:600,fontSize:'13px'}},MONTHS[HM]+' '+HY));
+  nav.appendChild(el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer'},onclick:()=>{HM++;if(HM>11){HM=0;HY++;}renderTab();}},'▶'));
+  main.appendChild(nav);
 
   if(!DB.users.length){main.appendChild(empty('אין עובדים עדיין'));return;}
 
-  const today=tdk();
   DB.users.forEach(u=>{
     const pts=gp(u.id);
     const todayDone=Object.entries(DB.comps[today]||{}).filter(([,v])=>v===u.id).length;
-    const mPrefix=`${HY}-${String(HM+1).padStart(2,'0')}`;
-    const monthHrs=(DB.hoursLog||[]).filter(h=>h.uid===u.id&&h.date.startsWith(mPrefix)).reduce((s,h)=>s+ch(h.start,h.end),0);
-    main.appendChild(card([
-      el('div',{style:{display:'flex',gap:'12px',alignItems:'center'}},[
-        el('div',{style:{width:'48px',height:'48px',borderRadius:'50%',background:u.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'24px',flexShrink:0}},u.emoji),
+    const myLogs=(DB.hoursLog||[]).filter(h=>h.uid===u.id&&h.date.startsWith(mPrefix));
+    const monthHrs=myLogs.reduce((s,h)=>s+ch(h.start,h.end),0);
+    const pct=Math.min(monthHrs/160*100,100);
+
+    const c=card([
+      // Header
+      el('div',{style:{display:'flex',gap:'12px',alignItems:'center',marginBottom:'10px'}},[
+        el('div',{style:{width:'44px',height:'44px',borderRadius:'50%',background:u.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'22px',flexShrink:0}},u.emoji),
         el('div',{style:{flex:1}},[
           el('div',{style:{fontWeight:700,fontSize:'15px'}},u.name),
-          el('div',{style:{fontSize:'12px',color:u.color,fontWeight:600,marginBottom:'4px'}},u.role),
-          el('div',{style:{display:'flex',gap:'10px',fontSize:'11px',color:'var(--clay)'}},[
-            el('span',{},pts+'★ נקודות'),
+          el('div',{style:{fontSize:'12px',color:u.color,fontWeight:600}},u.role),
+          el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px',display:'flex',gap:'10px'}},[
+            el('span',{},pts+'\u2605'),
             el('span',{},todayDone+' משימות היום'),
-            el('span',{},monthHrs.toFixed(1)+" ש' החודש"),
           ]),
         ]),
+        el('div',{style:{textAlign:'center'}},[
+          el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'20px',fontWeight:900,color:pct>=100?'var(--sage)':pct>50?'var(--straw)':'var(--clay)'}},monthHrs.toFixed(1)),
+          el('div',{style:{fontSize:'10px',color:'var(--clay)'}},"ש' החודש"),
+        ])
       ]),
-      el('div',{style:{marginTop:'10px'}},pbar(Math.min(pts/50*100,100),u.color,6)),
-    ]));
+      pbar(pct,pct>=100?'var(--sage)':pct>50?'var(--straw)':'var(--red)',6),
+      el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'3px',textAlign:'left'}},monthHrs.toFixed(1)+'/160 שעות'),
+
+      // Hours log for this user this month
+      myLogs.length?el('div',{style:{marginTop:'10px',borderTop:'1px solid var(--mist)',paddingTop:'8px'}},[
+        ...myLogs.slice(-5).reverse().map(h=>el('div',{style:{display:'flex',fontSize:'11px',color:'var(--clay)',padding:'2px 0',gap:'8px'}},[
+          el('span',{},fd(h.date)),
+          el('span',{},h.start+'-'+h.end),
+          el('span',{style:{fontWeight:600,color:'var(--sage)'}},ch(h.start,h.end).toFixed(1)+" ש'"),
+          h.note?el('span',{style:{fontStyle:'italic'}},h.note):'',
+          ME.role==='\u05de\u05e0\u05d4\u05dc'||h.uid===ME.id?el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'12px',marginRight:'auto'},onclick:()=>{if(confirm('למחוק?')){DB.hoursLog=DB.hoursLog.filter(x=>x.id!==h.id);save();renderTab();}}},'🗑'):'',
+        ]))
+      ]):'',
+    ]);
+    main.appendChild(c);
   });
 
-  if(ME.role==='מנהל'){
+  // Log hours form
+  const logCard=card([el('div',{className:'card-t'},'➕ רישום שעות')]);
+  const di=finp({type:'date',value:tdk()});
+  const si2=finp({type:'time',value:'08:00'});
+  const ei2=finp({type:'time',value:'16:00'});
+  const nt2=fta({placeholder:'הערה (אופציונלי)',style:{minHeight:'36px'}});
+  let logUid=ME.id;
+  const userSel=ME.role==='\u05de\u05e0\u05d4\u05dc'?fsel(DB.users.map(u=>[u.id,u.emoji+' '+u.name]),ME.id,v=>{logUid=v;}):null;
+  if(userSel){logCard.appendChild(el('div',{className:'flab'},'עובד'));logCard.appendChild(userSel);}
+  logCard.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'תאריך'),di]),
+    el('div',{},[el('div',{className:'flab'},'התחלה'),si2]),
+  ]));
+  logCard.appendChild(el('div',{style:{marginTop:'8px'}},[el('div',{className:'flab'},'סיום'),ei2]));
+  logCard.appendChild(el('div',{style:{marginTop:'8px'}},[el('div',{className:'flab'},'הערה'),nt2]));
+  logCard.appendChild(btn('שמור שעות','var(--sage)',()=>{
+    if(!di.value||!si2.value||!ei2.value){toast('מלא תאריך ושעות');return;}
+    const hrs=ch(si2.value,ei2.value);
+    if(hrs<=0){toast('שעת סיום לפני התחלה');return;}
+    if(!DB.hoursLog)DB.hoursLog=[];
+    DB.hoursLog.push({id:'h'+Date.now(),uid:logUid,date:di.value,start:si2.value,end:ei2.value,hrs,note:nt2.value.trim()});
+    save();toast('+'+hrs.toFixed(1)+' שעות נרשמו \u2713');renderTab();
+  },{width:'100%',marginTop:'8px'}));
+  main.appendChild(logCard);
+
+  if(ME.role==='\u05de\u05e0\u05d4\u05dc'){
     main.appendChild(card([
-      el('div',{style:{fontSize:'12px',color:'var(--clay)',textAlign:'center'}},'להוספת עובדים חדשים — עבור לטאב '),
+      el('div',{style:{fontSize:'12px',color:'var(--clay)',textAlign:'center'}},'להוספת עובדים חדשים — '),
       el('div',{style:{textAlign:'center',marginTop:'6px'}},btn('⚙️ ניהול','var(--earth)',()=>{TAB='admin';renderTab();},{fontSize:'12px'}))
     ],{background:'var(--mist)'}));
   }
