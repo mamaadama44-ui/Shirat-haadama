@@ -592,6 +592,43 @@ function openTaskJournal(tid){
 function rTasks(main){
   const today=tdk();const todayComps=DB.comps[today]||{};
   // Filter tabs
+  // Add task button (manager)
+  if(ME.role==='מנהל'){
+    main.appendChild(btn('➕ הוסף משימה','var(--red)',()=>{
+      const bg2=el('div',{className:'modal-bg'});
+      const box2=el('div',{className:'modal'});
+      box2.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'➕ משימה חדשה'));
+      const ti2=finp({placeholder:'תיאור המשימה'});
+      let qArea='animals',qPri='medium',qUid='',qRec='once';
+      const dRow=el('div',{className:'fgrid',style:{display:'grid'}});
+      const qDate=finp({type:'date'});const qTime=finp({type:'time',value:'08:00'});
+      dRow.appendChild(el('div',{},[el('div',{className:'flab'},'תאריך'),qDate]));
+      dRow.appendChild(el('div',{},[el('div',{className:'flab'},'שעה'),qTime]));
+      const recSel=fsel([['once','חד פעמית'],['daily','יומי'],['weekly','שבועי'],['monthly','חודשי']],'once',v=>{qRec=v;});
+      box2.appendChild(el('div',{className:'flab'},'כותרת'));box2.appendChild(ti2);
+      box2.appendChild(el('div',{className:'fgrid'},[
+        el('div',{},[el('div',{className:'flab'},'אזור'),fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),'animals',v=>{qArea=v;})]),
+        el('div',{},[el('div',{className:'flab'},'עדיפות'),fsel(Object.entries(PRI).map(([k,v])=>[k,v.l]),'medium',v=>{qPri=v;})]),
+      ]));
+      box2.appendChild(el('div',{className:'flab'},'תדירות'));box2.appendChild(recSel);
+      box2.appendChild(dRow);
+      box2.appendChild(el('div',{className:'flab'},'משויך ל'));
+      box2.appendChild(fsel([['','ללא שיוך'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])],'',v=>{qUid=v;}));
+      box2.appendChild(btn('הוסף','var(--sage)',()=>{
+        const title=ti2.value.trim();if(!title){toast('חסרה כותרת');return;}
+        if(qRec==='once'){
+          DB.oT.push({id:'o'+Date.now(),title,area:qArea,pri:qPri,uid:qUid,scheduledDate:qDate.value,scheduledTime:qTime.value,due:qDate.value,done:false,doneAt:null,createdBy:ME.id});
+        } else {
+          DB.rT.push({id:'r'+Date.now(),title,area:qArea,pri:qPri,rec:qRec,uid:qUid,createdBy:ME.id});
+        }
+        save();bg2.remove();toast('משימה נוספה ✓');renderTab();
+      },{width:'100%',marginTop:'10px'}));
+      box2.appendChild(btn('ביטול','var(--mist)',()=>bg2.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+      bg2.appendChild(box2);bg2.addEventListener('click',e=>{if(e.target===bg2)bg2.remove();});
+      document.body.appendChild(bg2);
+    },{width:'100%',marginBottom:'10px'}));
+  }
+
   const filterCard=card([
     el('div',{className:'chips'},[
       chip('הכל',STAB==='all','var(--earth)',()=>{STAB='all';renderTab();}),
