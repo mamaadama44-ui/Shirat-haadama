@@ -1629,20 +1629,20 @@ function editWorker(u){
 function rProjects(main){
   main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'🗂 פרויקטים'));
   const now=new Date(); now.setHours(0,0,0,0);
+  const today=tdk();
 
-  // Alert for urgent projects
-  const urgentProj=DB.projects.filter(p=>{
+  // Alert urgent projects
+  const urgent=DB.projects.filter(p=>{
     if(p.status!=='active'||!p.endDate)return false;
-    const diff=Math.ceil((new Date(p.endDate+'T00:00:00')-now)/(1000*60*60*24));
-    return diff<=3;
+    return Math.ceil((new Date(p.endDate+'T00:00:00')-now)/(86400000))<=3;
   });
-  if(urgentProj.length){
+  if(urgent.length){
     main.appendChild(el('div',{style:{background:'#fff0ee',border:'1px solid #C85A3A55',borderRadius:'10px',padding:'10px 14px',marginBottom:'10px',display:'flex',gap:'8px'}},[
       el('span',{style:{fontSize:'18px'}},'🚨'),
       el('div',{},[
         el('div',{style:{fontWeight:700,fontSize:'13px',color:'var(--red)',marginBottom:'4px'}},'פרויקטים עומדים לפקוע'),
-        ...urgentProj.map(p=>{
-          const diff=Math.ceil((new Date(p.endDate+'T00:00:00')-now)/(1000*60*60*24));
+        ...urgent.map(p=>{
+          const diff=Math.ceil((new Date(p.endDate+'T00:00:00')-now)/(86400000));
           return el('div',{style:{fontSize:'12px',color:'var(--clay)'}},'• '+p.title+' — '+(diff<0?'באיחור '+Math.abs(diff)+' ימים':diff===0?'היום!':'עוד '+diff+' ימים'));
         })
       ])
@@ -1656,13 +1656,15 @@ function rProjects(main){
     const pct=Math.round(doneCount/Math.max(total,1)*100);
     let daysInfo='',daysColor='var(--clay)';
     if(p.startDate&&p.endDate){
-      const diff=Math.ceil((new Date(p.endDate+'T00:00:00')-now)/(1000*60*60*24));
+      const diff=Math.ceil((new Date(p.endDate+'T00:00:00')-now)/(86400000));
       if(diff<0){daysInfo='באיחור '+Math.abs(diff)+' ימים';daysColor='var(--red)';}
       else if(diff===0){daysInfo='היום!';daysColor='var(--red)';}
       else if(diff<=3){daysInfo='עוד '+diff+' ימים';daysColor='var(--straw)';}
       else daysInfo='עוד '+diff+' ימים';
     }
+
     const pc=card([
+      // Header
       el('div',{style:{display:'flex',gap:'8px',alignItems:'flex-start',marginBottom:'8px'}},[
         el('div',{style:{width:'14px',height:'14px',borderRadius:'3px',background:p.color,flexShrink:0,marginTop:'3px'}},''),
         el('div',{style:{flex:1}},[
@@ -1671,45 +1673,51 @@ function rProjects(main){
             el('span',{},fd(p.startDate)+' → '+fd(p.endDate||'')),
             daysInfo?el('span',{style:{fontWeight:700,color:daysColor,marginRight:'6px'}},' · '+daysInfo):'',
           ]):'',
+          p.desc?el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px',fontStyle:'italic'}},p.desc):'',
         ]),
         el('span',{style:{fontSize:'11px',background:p.status==='active'?'#e8f5e4':'var(--mist)',color:p.status==='active'?'var(--sage)':'var(--clay)',padding:'2px 8px',borderRadius:'10px',fontWeight:600,flexShrink:0}},p.status==='active'?'פעיל':'הושלם'),
-        ME.role==='מנהל'?el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer'},onclick:()=>editProject(p)},'✏️'):'',
-        ME.role==='מנהל'?el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.5},onclick:()=>{if(confirm('למחוק פרויקט?')){DB.projects=DB.projects.filter(x=>x.id!==p.id);save();renderTab();}}},'🗑'):'',
+        ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer'},onclick:()=>editProject(p)},'✏️'):'',
+        ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.5},onclick:()=>{if(confirm('למחוק פרויקט?')){DB.projects=DB.projects.filter(x=>x.id!==p.id);save();renderTab();}}},'🗑'):'',
       ]),
-      p.desc?el('div',{style:{fontSize:'12px',color:'var(--clay)',marginBottom:'8px'}},p.desc):'',
+      // Progress
       total?el('div',{},[
         pbar(pct,p.color,6),
-        el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'4px',marginBottom:'8px'}},doneCount+'/'+total+' משימות · '+pct+'%')
+        el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'3px',marginBottom:'6px'}},doneCount+'/'+total+' משימות · '+pct+'%')
       ]):'',
-      // Project items (tasks specific to this project)
+      // Items list
       el('div',{style:{display:'flex',flexDirection:'column',gap:'3px'}},[
         ...p.items.map((item,idx)=>{
           const u=item.uid?gu(item.uid):null;
           const row=el('div',{style:{display:'flex',alignItems:'center',gap:'6px',padding:'5px 0',borderBottom:'1px solid var(--mist)'}});
+          // Checkbox
           const cb=el('div',{style:{width:'18px',height:'18px',borderRadius:'4px',flexShrink:0,cursor:'pointer',
             border:item.done?'none':'1.5px solid var(--parch)',
-            background:item.done?'var(--sage)':'transparent',
+            background:item.done?p.color:'transparent',
             display:'flex',alignItems:'center',justifyContent:'center',transition:'all .15s'}},
             item.done?el('span',{style:{color:'#fff',fontSize:'11px',fontWeight:700}},'✓'):'');
           cb.onclick=()=>{item.done=!item.done;if(item.done)item.doneAt=Date.now();else delete item.doneAt;save();renderTab();};
           row.appendChild(cb);
           row.appendChild(el('span',{style:{flex:1,fontSize:'13px',textDecoration:item.done?'line-through':'none',color:item.done?'var(--clay)':'var(--earth)'}},item.title));
-          if(item.due)row.appendChild(el('span',{style:{fontSize:'10px',color:new Date(item.due+'T00:00:00')<now&&!item.done?'var(--red)':'var(--clay)'}},'עד '+fd(item.due)));
-          if(u)row.appendChild(el('span',{style:{fontSize:'13px'}},u.emoji));
-          if(ME.role==='מנהל'){
+          if(item.due){
+            const isPast=new Date(item.due+'T00:00:00')<now&&!item.done;
+            row.appendChild(el('span',{style:{fontSize:'10px',color:isPast?'var(--red)':'var(--clay)'}},'עד '+fd(item.due)));
+          }
+          if(u)row.appendChild(el('span',{style:{fontSize:'13px',background:u.color+'22',borderRadius:'50%',padding:'2px'}},u.emoji));
+          if(ME.role==='\u05de\u05e0\u05d4\u05dc'){
             row.appendChild(el('button',{style:{background:'none',border:'none',fontSize:'12px',cursor:'pointer',opacity:.6},onclick:()=>editProjItem(p,item,idx)},'✏️'));
             row.appendChild(el('button',{style:{background:'none',border:'none',fontSize:'12px',cursor:'pointer',opacity:.4},onclick:()=>{if(confirm('למחוק?')){p.items.splice(idx,1);save();renderTab();}}},'🗑'));
           }
           return row;
         }),
-        ME.role==='מנהל'?addProjItemRow(p):el('span'),
+        // Add item row (manager only)
+        ME.role==='\u05de\u05e0\u05d4\u05dc'?addProjItemRow(p):el('span'),
       ])
     ]);
     main.appendChild(pc);
   });
 
   if(!DB.projects.length)main.appendChild(empty('אין פרויקטים'));
-  if(ME.role==='מנהל')main.appendChild(btn('➕ פרויקט חדש','var(--sage)',()=>editProject(null),{width:'100%',marginTop:'8px'}));
+  if(ME.role==='\u05de\u05e0\u05d4\u05dc')main.appendChild(btn('➕ פרויקט חדש','var(--sage)',()=>editProject(null),{width:'100%',marginTop:'8px'}));
 }
 
 function addProjItemRow(p){
@@ -1729,7 +1737,7 @@ function addProjItemRow(p){
 function editProjItem(p,item,idx){
   const bg=el('div',{className:'modal-bg'});
   const box=el('div',{className:'modal'});
-  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'✏️ עריכת משימה'));
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'✏️ עריכת משימת פרויקט'));
   const ti=finp({value:item.title,placeholder:'כותרת'});
   const di=finp({type:'date',value:item.due||''});
   const us=fsel([['','ללא'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])],item.uid||'');
@@ -1739,7 +1747,7 @@ function editProjItem(p,item,idx){
   box.appendChild(btn('שמור','var(--sage)',()=>{
     item.title=ti.value.trim()||item.title;
     item.due=di.value;item.uid=us.value;
-    save();bg.remove();toast('נשמר ✓');renderTab();
+    save();bg.remove();toast('נשמר \u2713');renderTab();
   },{width:'100%',marginTop:'10px'}));
   box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
   bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
