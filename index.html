@@ -204,6 +204,12 @@ const DEFAULT_DATA = {
     {id:'o2',title:'פרסום סדנה זוגיות',area:'marketing',pri:'medium',uid:'',due:'2026-05-25',done:false,doneAt:null},
   ],
   comps:{},taskNotes:{},actLog:[],hoursLog:[],bonus:{},
+  suppliers:[
+    {id:'s1',name:'הגרעין',category:'חקלאות',phone:'',email:'',notes:'זרעים ומוצרי חקלאות',items:[]},
+    {id:'s2',name:'ספק אוכל לחיות',category:'בעלי חיים',phone:'',email:'',notes:'מזון לבעלי חיים',items:[]},
+    {id:'s3',name:'טמבוריה',category:'בניה',phone:'',email:'',notes:'מוצרי בניה וכלים',items:[]},
+    {id:'s4',name:'משתלה',category:'צמחים',phone:'',email:'',notes:'שתילים וצמחים',items:[]},
+  ],
   inv:[
     {id:'i1',name:'שמן לבנדר',icon:'💜',qty:5,unit:'בקבוקים',minQty:2,invCat:'workshops',desc:'לסדנאות'},
     {id:'i2',name:'תה צמחים',icon:'🍵',qty:20,unit:"ק\"ג",minQty:5,invCat:'workshops',desc:'מוצר מרפא'},
@@ -836,33 +842,218 @@ function rActivity(main){
 }
 
 function rInventory(main){
-  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'📦 מלאי'));
-  const catChips=el('div',{className:'chips',style:{marginBottom:'10px'}});
-  [['all','הכל'],...Object.entries(INV_CATS).map(([k,v])=>[k,v.l])].forEach(([k,l])=>{catChips.appendChild(chip(l,ICF===k,INV_CATS[k]?.c||'var(--earth)',()=>{ICF=k;renderTab();}));});
-  main.appendChild(catChips);
-  let items=ICF==='all'?DB.inv:DB.inv.filter(i=>i.invCat===ICF);
-  items.forEach(item=>{
-    const isLow=item.qty<item.minQty;
-    const pct=Math.min(item.qty/Math.max(item.minQty*2,1)*100,100);
-    const color=isLow?'var(--red)':item.qty<item.minQty*1.5?'var(--straw)':'var(--sage)';
-    const catC=INV_CATS[item.invCat]?.c||'var(--clay)';
-    const r=el('div',{className:'inv-row'},[
-      el('span',{style:{fontSize:'22px'}},item.icon),
-      el('div',{style:{flex:1}},[
-        el('div',{style:{fontWeight:600,fontSize:'13px'}},item.name),
-        el('div',{style:{marginTop:'3px'}},pbar(pct,color,4)),
-        el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'2px'}},`${item.qty} ${item.unit} · מינ׳: ${item.minQty}`)
-      ]),
-      isLow?el('span',{style:{color:'var(--red)',fontWeight:700,fontSize:'12px'}},'⚠️'):'',
-      ME.role==='מנהל'?el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 9px',fontSize:'11px',fontWeight:600,cursor:'pointer'},onclick:()=>editInv(item)},'ערוך'):'',
-      el('div',{style:{display:'flex',gap:'4px',flexDirection:'column'}},[
-        el('button',{style:{background:'var(--sage)',color:'#fff',border:'none',borderRadius:'6px',padding:'4px 8px',fontSize:'12px',cursor:'pointer'},onclick:()=>{item.qty=Math.round((item.qty+1)*10)/10;save();renderTab();al('inv','עדכון מלאי: '+item.name,'+1 '+item.unit);}},'+1'),
-        el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'4px 8px',fontSize:'12px',cursor:'pointer'},onclick:()=>{if(item.qty>0){item.qty=Math.round((item.qty-1)*10)/10;save();renderTab();al('inv','עדכון מלאי: '+item.name,'-1 '+item.unit);}}},'-1'),
-      ])
-    ]);
-    main.appendChild(r);
-  });
-  if(ME.role==='מנהל') main.appendChild(btn('➕ פריט חדש','var(--sage)',()=>editInv(null),{width:'100%',marginTop:'10px'}));
+  if(!window._invTab)window._invTab='items';
+  const invTab=window._invTab;
+
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'📦 מלאי וספקים'));
+
+  // Tab switcher
+  main.appendChild(el('div',{style:{display:'flex',gap:'6px',marginBottom:'12px'}},[
+    btn('📦 מלאי',invTab==='items'?'var(--sage)':'var(--mist)',()=>{window._invTab='items';renderTab();},{color:invTab==='items'?'#fff':'var(--clay)',flex:1}),
+    btn('🏪 ספקים',invTab==='suppliers'?'var(--sage)':'var(--mist)',()=>{window._invTab='suppliers';renderTab();},{color:invTab==='suppliers'?'#fff':'var(--clay)',flex:1}),
+    btn('🛒 הזמנות',invTab==='orders'?'var(--red)':'var(--mist)',()=>{window._invTab='orders';renderTab();},{color:invTab==='orders'?'#fff':'var(--clay)',flex:1}),
+  ]));
+
+  if(invTab==='items'){
+    // Category chips
+    const catChips=el('div',{className:'chips',style:{marginBottom:'10px'}});
+    [['all','הכל'],...Object.entries(INV_CATS).map(([k,v])=>[k,v.l])].forEach(([k,l])=>{
+      catChips.appendChild(chip(l,ICF===k,INV_CATS[k]?.c||'var(--earth)',()=>{ICF=k;renderTab();}));
+    });
+    main.appendChild(catChips);
+
+    let items=ICF==='all'?DB.inv:DB.inv.filter(i=>i.invCat===ICF);
+    const shortage=items.filter(i=>i.qty<i.minQty);
+
+    if(shortage.length){
+      main.appendChild(card([
+        el('div',{style:{color:'var(--red)',fontWeight:700,fontSize:'13px',marginBottom:'6px'}},'⚠️ '+shortage.length+' פריטים חסרים'),
+        ...shortage.map(item=>el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'5px 0',fontSize:'12px',borderBottom:'1px solid var(--mist)'}},[
+          el('span',{style:{fontSize:'16px'}},item.icon),
+          el('span',{style:{flex:1}},item.name),
+          el('span',{style:{color:'var(--red)',fontWeight:600}},item.qty+'/'+item.minQty+' '+item.unit),
+          // Find supplier
+          el('button',{style:{background:'var(--straw)',color:'#fff',border:'none',borderRadius:'6px',padding:'3px 8px',fontSize:'11px',cursor:'pointer'},
+            onclick:()=>{
+              const sup=DB.suppliers.find(s=>s.items&&s.items.includes(item.id));
+              if(sup)toast('ספק: '+sup.name+(sup.phone?' | '+sup.phone:''));
+              else toast('אין ספק מוגדר לפריט זה');
+            }},'\uD83D\uDED2 ספק'),
+        ]))
+      ],{background:'#fff0ee',border:'1px solid #C85A3A33'}));
+    }
+
+    items.forEach(item=>{
+      const isLow=item.qty<item.minQty;
+      const pct=Math.min(item.qty/Math.max(item.minQty*2,1)*100,100);
+      const color=isLow?'var(--red)':item.qty<item.minQty*1.5?'var(--straw)':'var(--sage)';
+      const sup=DB.suppliers.find(s=>s.items&&s.items.includes(item.id));
+      const r=el('div',{className:'inv-row'},[
+        el('span',{style:{fontSize:'22px'}},item.icon),
+        el('div',{style:{flex:1}},[
+          el('div',{style:{fontWeight:600,fontSize:'13px'}},item.name),
+          el('div',{style:{marginTop:'3px'}},pbar(pct,color,4)),
+          el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'2px',display:'flex',gap:'8px'}},[
+            el('span',{},item.qty+' '+item.unit+' / מינ: '+item.minQty),
+            sup?el('span',{style:{color:'var(--straw)'}},'\uD83C\uDFEA '+sup.name):'',
+          ])
+        ]),
+        isLow?el('span',{style:{color:'var(--red)',fontWeight:700,fontSize:'12px'}},'⚠️'):'',
+        ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 9px',fontSize:'11px',fontWeight:600,cursor:'pointer'},onclick:()=>editInv(item)},'ערוך'):'',
+        el('div',{style:{display:'flex',gap:'4px',flexDirection:'column'}},[
+          el('button',{style:{background:'var(--sage)',color:'#fff',border:'none',borderRadius:'6px',padding:'4px 8px',fontSize:'12px',cursor:'pointer'},onclick:()=>{item.qty=Math.round((item.qty+1)*10)/10;save();renderTab();al('inv','עדכון: '+item.name,'+1');}},'+1'),
+          el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'4px 8px',fontSize:'12px',cursor:'pointer'},onclick:()=>{if(item.qty>0){item.qty=Math.round((item.qty-1)*10)/10;save();renderTab();al('inv','עדכון: '+item.name,'-1');}}},'-1'),
+        ])
+      ]);
+      main.appendChild(r);
+    });
+    if(ME.role==='\u05de\u05e0\u05d4\u05dc') main.appendChild(btn('➕ פריט חדש','var(--sage)',()=>editInv(null),{width:'100%',marginTop:'10px'}));
+
+  } else if(invTab==='suppliers'){
+    if(!DB.suppliers)DB.suppliers=[];
+    DB.suppliers.forEach(sup=>{
+      const supItems=(sup.items||[]).map(id=>DB.inv.find(i=>i.id===id)).filter(Boolean);
+      const shortageItems=supItems.filter(i=>i.qty<i.minQty);
+      const c=card([
+        el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'8px'}},[
+          el('div',{},[
+            el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700}},sup.name),
+            el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px'}},[
+              el('span',{style:{background:'var(--mist)',padding:'1px 7px',borderRadius:'8px',marginLeft:'4px'}},sup.category),
+              sup.phone?el('span',{},'\uD83D\uDCDE '+sup.phone):'',
+            ]),
+          ]),
+          el('div',{style:{display:'flex',gap:'4px'}},[
+            ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer'},onclick:()=>editSupplier(sup)},'✏️'):'',
+            ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.5},onclick:()=>{if(confirm('למחוק?')){DB.suppliers=DB.suppliers.filter(s=>s.id!==sup.id);save();renderTab();}}},'🗑'):'',
+          ])
+        ]),
+        shortageItems.length?el('div',{style:{background:'#fff0ee',borderRadius:'6px',padding:'6px 8px',marginBottom:'6px',fontSize:'12px'}},[
+          el('div',{style:{color:'var(--red)',fontWeight:600,marginBottom:'3px'}},'⚠️ חסר להזמין:'),
+          ...shortageItems.map(i=>el('div',{style:{display:'flex',justifyContent:'space-between',padding:'1px 0'}},[
+            el('span',{},i.icon+' '+i.name),
+            el('span',{style:{color:'var(--red)',fontWeight:600}},i.minQty-i.qty+' '+i.unit),
+          ]))
+        ]):'',
+        supItems.length?el('div',{style:{fontSize:'12px',color:'var(--clay)'}},'פריטים: '+supItems.map(i=>i.icon+i.name).join(' · ')):el('div',{style:{fontSize:'12px',color:'var(--clay)',fontStyle:'italic'}},'אין פריטים מוגדרים'),
+        sup.notes?el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'4px',fontStyle:'italic'}},sup.notes):'',
+        shortageItems.length?btn('\uD83D\uDCE7 שלח מייל הזמנה','var(--red)',async ()=>{
+          const lines=['\u05d1\u05e7\u05e9\u05ea \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d0\u05ea \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4:',''];
+          shortageItems.forEach(i=>lines.push('\u2022 '+i.name+': '+( i.minQty-i.qty).toFixed(1)+' '+i.unit+' (\u05de\u05dc\u05d0\u05d9 \u05e0\u05d5\u05db\u05d7\u05d9: '+i.qty+')'));
+          lines.push('','\u05ea\u05d5\u05d3\u05d4,','\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4');
+          const admin=DB.users.find(u=>u.role==='\u05de\u05e0\u05d4\u05dc');
+          if(admin&&admin.email){
+            const ok=await sendEmail(admin.email,admin.name,'\uD83D\uDED2 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de '+sup.name,lines.join('\n'));
+            toast(ok?'\u05de\u05d9\u05d9\u05dc \u05d4\u05d6\u05de\u05e0\u05d4 \u05e0\u05e9\u05dc\u05d7 \u2713':'\u05e9\u05d2\u05d9\u05d0\u05d4');
+          }
+        },{width:'100%',marginTop:'8px',fontSize:'12px'}):'',
+      ]);
+      main.appendChild(c);
+    });
+    if(ME.role==='\u05de\u05e0\u05d4\u05dc') main.appendChild(btn('➕ ספק חדש','var(--sage)',()=>editSupplier(null),{width:'100%',marginTop:'10px'}));
+
+  } else if(invTab==='orders'){
+    // Auto-generate order list from shortage
+    const shortage=DB.inv.filter(i=>i.qty<i.minQty);
+    if(!shortage.length){
+      main.appendChild(card([empty('אין פריטים חסרים כרגע 🎉')]));
+      return;
+    }
+    // Group by supplier
+    const bySup={};
+    shortage.forEach(item=>{
+      const sup=DB.suppliers.find(s=>s.items&&s.items.includes(item.id));
+      const key=sup?sup.id:'unknown';
+      const name=sup?sup.name:'\u05dc\u05dc\u05d0 \u05e1\u05e4\u05e7';
+      if(!bySup[key])bySup[key]={name,sup,items:[]};
+      bySup[key].items.push(item);
+    });
+
+    main.appendChild(el('div',{style:{fontSize:'13px',color:'var(--clay)',marginBottom:'10px'}},'רשימת הזמנות לפי ספק:'));
+
+    Object.values(bySup).forEach(({name,sup,items:orderItems})=>{
+      const total=orderItems.reduce((s,i)=>s+(i.minQty-i.qty),0);
+      const c=card([
+        el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
+          el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700}},'\uD83C\uDFEA '+name),
+          sup&&sup.phone?el('a',{style:{fontSize:'12px',color:'var(--sage)'},href:'tel:'+sup.phone},'\uD83D\uDCDE '+sup.phone):'',
+        ]),
+        ...orderItems.map(i=>el('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',fontSize:'13px',borderBottom:'1px solid var(--mist)'}},[
+          el('span',{},i.icon+' '+i.name),
+          el('div',{style:{display:'flex',gap:'8px',alignItems:'center'}},[
+            el('span',{style:{color:'var(--clay)',fontSize:'11px'}},'יש: '+i.qty),
+            el('span',{style:{color:'var(--red)',fontWeight:700}},'\u05d3\u05e8\u05d5\u05e9: '+(i.minQty-i.qty).toFixed(1)+' '+i.unit),
+          ])
+        ])),
+        sup?btn('\uD83D\uDCE7 \u05e9\u05dc\u05d7 \u05d4\u05d6\u05de\u05e0\u05d4 \u05dc\u05de\u05e9\u05e8\u05d3','var(--sage)',async ()=>{
+          const lines=['\u05d1\u05e7\u05e9\u05ea \u05d4\u05d6\u05de\u05e0\u05d4 \u05de \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4:',''];
+          orderItems.forEach(i=>lines.push('\u2022 '+i.name+': '+(i.minQty-i.qty).toFixed(1)+' '+i.unit));
+          lines.push('','\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4');
+          const admin=DB.users.find(u=>u.role==='\u05de\u05e0\u05d4\u05dc');
+          if(admin)await sendEmail(admin.email,admin.name,'\uD83D\uDED2 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de '+name,lines.join('\n'));
+          toast('\u05e0\u05e9\u05dc\u05d7 \u2713');
+        },{width:'100%',marginTop:'8px',fontSize:'12px'}):'',
+      ]);
+      main.appendChild(c);
+    });
+  }
+}
+
+function editSupplier(sup){
+  const isNew=!sup;
+  if(isNew)sup={id:'s'+Date.now(),name:'',category:'',phone:'',email:'',notes:'',items:[]};
+  if(!sup.items)sup.items=[];
+  const bg=el('div',{className:'modal-bg'});
+  const box=el('div',{className:'modal'});
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'14px'}},isNew?'ספק חדש':'עריכת ספק'));
+  const nameInp=finp({value:sup.name,placeholder:'שם הספק'});
+  const catInp=finp({value:sup.category,placeholder:'קטגוריה (חקלאות, בניה...)'});
+  const phoneInp=finp({value:sup.phone,placeholder:'טלפון'});
+  const emailInp=finp({type:'email',value:sup.email||'',placeholder:'מייל ספק'});
+  const notesInp=fta({value:sup.notes||'',placeholder:'הערות',style:{minHeight:'50px'}});
+
+  // Item assignment
+  const itemListEl=el('div',{style:{maxHeight:'180px',overflowY:'auto',border:'1px solid var(--parch)',borderRadius:'8px',padding:'4px'}});
+  let selItems=[...sup.items];
+  const renderItems=()=>{
+    itemListEl.innerHTML='';
+    DB.inv.forEach(item=>{
+      const checked=selItems.includes(item.id);
+      const row=el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'5px',borderRadius:'6px',cursor:'pointer',background:checked?'rgba(106,154,90,.08)':'transparent'}});
+      const chk=el('div',{style:{width:'16px',height:'16px',borderRadius:'3px',flexShrink:0,border:checked?'none':'1.5px solid var(--parch)',background:checked?'var(--sage)':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}},checked?el('span',{style:{color:'#fff',fontSize:'10px'}},'✓'):'');
+      row.appendChild(chk);
+      row.appendChild(el('span',{style:{fontSize:'13px'}},item.icon));
+      row.appendChild(el('span',{style:{fontSize:'12px',flex:1}},item.name));
+      row.onclick=()=>{
+        if(selItems.includes(item.id))selItems=selItems.filter(x=>x!==item.id);
+        else selItems.push(item.id);
+        renderItems();
+      };
+      itemListEl.appendChild(row);
+    });
+  };
+  renderItems();
+
+  box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(nameInp);
+  box.appendChild(el('div',{className:'flab'},'קטגוריה'));box.appendChild(catInp);
+  box.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'טלפון'),phoneInp]),
+    el('div',{},[el('div',{className:'flab'},'מייל'),emailInp]),
+  ]));
+  box.appendChild(el('div',{className:'flab'},'הערות'));box.appendChild(notesInp);
+  box.appendChild(el('div',{className:'flab'},'פריטים מסופקים'));box.appendChild(itemListEl);
+  box.appendChild(btn('שמור','var(--sage)',()=>{
+    sup.name=nameInp.value.trim();if(!sup.name){toast('חסר שם');return;}
+    sup.category=catInp.value.trim();sup.phone=phoneInp.value.trim();
+    sup.email=emailInp.value.trim();sup.notes=notesInp.value.trim();
+    sup.items=selItems;
+    if(!DB.suppliers)DB.suppliers=[];
+    if(isNew)DB.suppliers.push(sup);
+    save();bg.remove();toast('ספק נשמר \u2713');renderTab();
+  },{width:'100%',marginTop:'12px'}));
+  box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+  bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
 }
 
 function editInv(item){
@@ -1051,14 +1242,95 @@ function equipRow(e){
 
 function editEquip(e){
   const isNew=!e;
-  if(isNew)e={id:'e'+Date.now(),name:'',icon:'🔧',cond:100,lastSvc:tdk(),nextSvc:'',cost:0,notes:'',area:'admin'};
-  let html=`<div style="font-family:'Frank Ruhl Libre',serif;font-size:16px;font-weight:700;margin-bottom:14px">${isNew?'ציוד חדש':'עריכת ציוד'}</div>`;
-  html+=`<label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">שם</label><input id="ee_name" value="${e.name}" class="finp" style="margin-bottom:8px">`;
-  html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px"><div><label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">מצב %</label><input id="ee_cond" type="number" min="0" max="100" value="${e.cond}" class="finp"></div><div><label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">עלות אחרונה</label><input id="ee_cost" type="number" value="${e.cost}" class="finp"></div></div>`;
-  html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px"><div><label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">תאריך טיפול</label><input id="ee_last" type="date" value="${e.lastSvc}" class="finp"></div><div><label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">טיפול הבא</label><input id="ee_next" type="date" value="${e.nextSvc}" class="finp"></div></div>`;
-  html+=`<label style="font-size:10px;font-weight:700;color:var(--sage);display:block;margin-bottom:4px">הערות</label><input id="ee_notes" value="${e.notes}" class="finp" style="margin-bottom:12px">`;
-  html+=`<button onclick="(()=>{e.name=document.getElementById('ee_name').value.trim();e.cond=parseInt(document.getElementById('ee_cond').value)||0;e.cost=parseInt(document.getElementById('ee_cost').value)||0;e.lastSvc=document.getElementById('ee_last').value;e.nextSvc=document.getElementById('ee_next').value;e.notes=document.getElementById('ee_notes').value;if(${isNew}){DB.equip.push(e);}save();document.querySelector('.modal-bg').remove();toast('נשמר');renderTab();})()" style="width:100%;padding:11px;background:var(--sage);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">שמור</button>`;
-  modal(html);
+  if(isNew)e={id:'e'+Date.now(),name:'',icon:'🔧',cond:100,lastSvc:tdk(),nextSvc:'',cost:0,notes:'',area:'admin',repairLog:[]};
+  if(!e.repairLog)e.repairLog=[];
+  const bg=el('div',{className:'modal-bg'});
+  const box=el('div',{className:'modal'});
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'14px'}},isNew?'ציוד חדש':'עריכת ציוד'));
+
+  const nameInp=finp({value:e.name,placeholder:'שם הציוד'});
+  const iconInp=finp({value:e.icon,placeholder:'אמוג׳י'});
+  const condInp=finp({type:'number',min:'0',max:'100',value:String(e.cond)});
+  const costInp=finp({type:'number',value:String(e.cost||0)});
+  const lastInp=finp({type:'date',value:e.lastSvc||''});
+  const nextInp=finp({type:'date',value:e.nextSvc||''});
+  const notesInp=finp({value:e.notes||'',placeholder:'הערות'});
+  const areaSel=fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),e.area||'admin');
+
+  box.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'שם'),nameInp]),
+    el('div',{},[el('div',{className:'flab'},'אמוג׳י'),iconInp]),
+  ]));
+  box.appendChild(el('div',{className:'flab'},'אזור'));box.appendChild(areaSel);
+
+  // Condition slider with visual
+  const condDisplay=el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'24px',fontWeight:900,textAlign:'center',color:'var(--sage)',margin:'4px 0'}},e.cond+'%');
+  condInp.type='range';
+  condInp.style.cssText='width:100%;margin:4px 0;';
+  condInp.oninput=()=>{
+    condDisplay.textContent=condInp.value+'%';
+    condDisplay.style.color=condInp.value<50?'var(--red)':condInp.value<70?'var(--straw)':'var(--sage)';
+  };
+  box.appendChild(el('div',{className:'flab'},'מצב ציוד'));
+  box.appendChild(condDisplay);
+  box.appendChild(condInp);
+
+  // Quick adjust buttons
+  const adjRow=el('div',{style:{display:'flex',gap:'5px',marginBottom:'8px'}});
+  [[-20,'🔴 -20%'],[-10,'🟠 -10%'],[+10,'🟢 +10%'],[+20,'💚 +20%'],['100','✅ תקין לחלוטין']].forEach(([v,l])=>{
+    adjRow.appendChild(el('button',{style:{flex:1,padding:'4px 2px',fontSize:'10px',background:'var(--mist)',border:'none',borderRadius:'5px',cursor:'pointer',fontFamily:'inherit'},
+      onclick:()=>{
+        const newVal=v==='100'?100:Math.min(100,Math.max(0,parseInt(condInp.value)+v));
+        condInp.value=newVal;
+        condDisplay.textContent=newVal+'%';
+        condDisplay.style.color=newVal<50?'var(--red)':newVal<70?'var(--straw)':'var(--sage)';
+      }},l));
+  });
+  box.appendChild(adjRow);
+
+  box.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'תאריך טיפול'),lastInp]),
+    el('div',{},[el('div',{className:'flab'},'טיפול הבא'),nextInp]),
+  ]));
+  box.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'עלות אחרונה ₪'),costInp]),
+    el('div',{},[el('div',{className:'flab'},'הערות'),notesInp]),
+  ]));
+
+  // Repair log
+  if(e.repairLog&&e.repairLog.length){
+    const logEl=el('div',{style:{maxHeight:'100px',overflowY:'auto',fontSize:'11px',color:'var(--clay)',borderTop:'1px solid var(--mist)',paddingTop:'6px',marginTop:'6px'}});
+    e.repairLog.slice().reverse().forEach(r=>{
+      logEl.appendChild(el('div',{style:{padding:'2px 0'}},new Date(r.ts).toLocaleDateString('he-IL')+' — '+r.note+(r.cost?' ('+r.cost+'₪)':'')+(r.condChange?' '+r.condBefore+'%→'+r.condAfter+'%':'')));
+    });
+    box.appendChild(el('div',{className:'flab'},'היסטוריית תיקונים'));
+    box.appendChild(logEl);
+  }
+
+  // Partial repair note
+  const repairNote=fta({placeholder:'הערת תיקון (אופציונלי)',style:{minHeight:'40px',marginTop:'4px'}});
+  box.appendChild(el('div',{className:'flab'},'הוסף הערת תיקון'));
+  box.appendChild(repairNote);
+
+  box.appendChild(btn('שמור','var(--sage)',()=>{
+    const oldCond=e.cond;
+    const newCond=parseInt(condInp.value)||0;
+    e.name=nameInp.value.trim()||e.name;
+    e.icon=iconInp.value||'🔧';
+    e.cond=newCond;e.area=areaSel.value;
+    e.cost=parseInt(costInp.value)||0;
+    e.lastSvc=lastInp.value;e.nextSvc=nextInp.value;e.notes=notesInp.value;
+    // Log repair if condition changed or note added
+    if(repairNote.value.trim()||newCond!==oldCond){
+      if(!e.repairLog)e.repairLog=[];
+      e.repairLog.push({ts:Date.now(),note:repairNote.value.trim(),cost:e.cost,condBefore:oldCond,condAfter:newCond,condChange:newCond!==oldCond,by:ME.id,byName:ME.name});
+    }
+    if(isNew){if(!DB.equip)DB.equip=[];DB.equip.push(e);}
+    save();bg.remove();toast('נשמר \u2713');renderTab();
+  },{width:'100%',marginTop:'10px'}));
+  box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+  bg.appendChild(box);bg.addEventListener('click',ev=>{if(ev.target===bg)bg.remove();});
+  document.body.appendChild(bg);
 }
 
 function rHours(main){
@@ -2228,72 +2500,109 @@ async function checkAndSendMonthlySummary(){
 
 function rAdmin(main){
   main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'⚙️ ניהול'));
+
+  // Users section
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700,marginBottom:'8px',color:'var(--clay)'}},'👥 צוות'));
+
   DB.users.forEach(user=>{
-    const uc=el('div',{style:{background:'var(--white)',borderRadius:'10px',padding:'12px',marginBottom:'8px',boxShadow:'0 2px 12px rgba(26,18,5,.12)',display:'flex',alignItems:'center',gap:'10px'}});
-    uc.appendChild(el('div',{style:{width:'38px',height:'38px',borderRadius:'50%',background:user.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px'}},user.emoji));
-    const ui=el('div',{style:{flex:1}});
-    ui.appendChild(el('div',{style:{fontWeight:700,fontSize:'14px'}},user.name));
-    ui.appendChild(el('div',{style:{fontSize:'11px',color:user.color,fontWeight:600}},user.role));
-    ui.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)'}},user.email+' · '+gp(user.id)+'\u2605'));
-    uc.appendChild(ui);
-    const acts=el('div',{style:{display:'flex',flexDirection:'column',gap:'4px'}});
-    const rb=el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'4px 9px',fontSize:'10px',fontWeight:600,cursor:'pointer',color:'var(--soil)',fontFamily:'inherit'}},user.role==='\u05de\u05e0\u05d4\u05dc'?'\u2192 \u05e2\u05d5\u05d1\u05d3':'\u2192 \u05de\u05e0\u05d4\u05dc');
-    rb.onclick=()=>{user.role=user.role==='\u05de\u05e0\u05d4\u05dc'?'\u05e2\u05d5\u05d1\u05d3':'\u05de\u05e0\u05d4\u05dc';save();toast('\u05ea\u05e4\u05e7\u05d9\u05d3 \u05e9\u05d5\u05e0\u05d4 \u2713');renderTab();};
-    acts.appendChild(rb);
-    if(user.id!==ME.id){const db2=el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'16px'}},'\uD83D\uDDD1');db2.onclick=()=>{if(!confirm('\u05dc\u05de\u05d7\u05d5\u05e7?'))return;DB.users=DB.users.filter(u=>u.id!==user.id);save();toast('\u05e0\u05de\u05d7\u05e7');renderTab();};acts.appendChild(db2);}
-    uc.appendChild(acts);main.appendChild(uc);
+    const isManager=user.role==='\u05de\u05e0\u05d4\u05dc';
+    const c=card([
+      el('div',{style:{display:'flex',gap:'10px',alignItems:'center'}},[
+        el('div',{style:{width:'42px',height:'42px',borderRadius:'50%',background:user.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'20px',flexShrink:0}},user.emoji),
+        el('div',{style:{flex:1}},[
+          el('div',{style:{fontWeight:700,fontSize:'14px'}},user.name),
+          el('div',{style:{display:'flex',gap:'6px',alignItems:'center',marginTop:'2px'}},[
+            el('span',{style:{background:isManager?'rgba(200,90,58,.12)':'rgba(106,154,90,.12)',color:isManager?'var(--red)':'var(--sage)',padding:'2px 8px',borderRadius:'8px',fontSize:'11px',fontWeight:700}},isManager?'👑 מנהל':'👤 עובד'),
+            el('span',{style:{fontSize:'10px',color:'var(--clay)'}},user.email),
+          ]),
+          el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'1px'}},gp(user.id)+'\u2605 נקודות'),
+        ]),
+        el('div',{style:{display:'flex',flexDirection:'column',gap:'4px',alignItems:'flex-end'}},[
+          // Toggle role button
+          el('button',{style:{
+            background:isManager?'rgba(106,154,90,.12)':'rgba(200,90,58,.12)',
+            color:isManager?'var(--sage)':'var(--red)',
+            border:'1px solid '+(isManager?'var(--sage)':'var(--red)'),
+            borderRadius:'6px',padding:'4px 10px',fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit'
+          },onclick:()=>{
+            if(user.id===ME.id&&isManager){toast('לא ניתן להסיר מנהל מעצמך');return;}
+            user.role=isManager?'\u05e2\u05d5\u05d1\u05d3':'\u05de\u05e0\u05d4\u05dc';
+            save();toast(user.name+' \u05e2\u05db\u05e9\u05d9\u05d5 '+user.role);renderTab();
+          }},isManager?'→ הורד לעובד':'→ הפוך למנהל'),
+          // Reset password
+          ME.role==='\u05de\u05e0\u05d4\u05dc'&&user.id!==ME.id?el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'3px 8px',fontSize:'10px',cursor:'pointer',fontFamily:'inherit',color:'var(--clay)'},onclick:()=>{
+            const newPass=prompt('סיסמא חדשה עבור '+user.name+':');
+            if(newPass&&newPass.length>=4){user.pass=newPass;save();toast('סיסמא עודכנה \u2713');}
+            else if(newPass)toast('סיסמא קצרה מדי');
+          }},'\uD83D\uDD11 \u05e9\u05d0\u05e0\u05d9 \u05e1\u05d9\u05e1\u05de\u05d0'):'',
+          user.id!==ME.id?el('button',{style:{background:'none',border:'none',color:'#ddd',cursor:'pointer',fontSize:'14px'},onclick:()=>{if(confirm('\u05dc\u05de\u05d7\u05d5\u05e7 '+user.name+'?')){DB.users=DB.users.filter(u=>u.id!==user.id);save();toast('\u05e0\u05de\u05d7\u05e7');renderTab();}}},'🗑'):'',
+        ])
+      ])
+    ],{border:isManager?'1px solid rgba(200,90,58,.2)':'1px solid rgba(232,216,184,.4)'});
+    main.appendChild(c);
   });
 
-  const ac=card([el('div',{className:'card-t'},'\u2795 \u05d4\u05d5\u05e1\u05e3 \u05e2\u05d5\u05d1\u05d3 \u05d7\u05d3\u05e9'),
-    el('div',{style:{fontSize:'12px',color:'var(--clay)',marginBottom:'10px',background:'var(--mist)',borderRadius:'7px',padding:'8px 10px'}},'\u05e8\u05e7 \u05de\u05e0\u05d4\u05dc \u05d9\u05db\u05d5\u05dc \u05dc\u05d9\u05e6\u05d5\u05e8 \u05d7\u05e9\u05d1\u05d5\u05e0\u05d5\u05ea \u05d7\u05d3\u05e9\u05d9\u05dd')]);
-  const ni=finp({placeholder:'\u05e9\u05dd \u05de\u05dc\u05d0'});
+  // Add new user
+  const ac=card([
+    el('div',{className:'card-t'},'➕ הוסף עובד חדש'),
+    el('div',{style:{fontSize:'12px',color:'var(--clay)',marginBottom:'10px',background:'var(--mist)',borderRadius:'7px',padding:'8px 10px'}},'רק מנהל יכול ליצור חשבונות חדשים')
+  ]);
+  const ni=finp({placeholder:'שם מלא'});
   const ei=finp({type:'email',placeholder:'email@sheirat.com'});
-  const pi=finp({type:'password',placeholder:'\u05dc\u05e4\u05d7\u05d5\u05ea 4 \u05ea\u05d5\u05d5\u05d9\u05dd'});
+  const pi=finp({type:'password',placeholder:'לפחות 4 תווים'});
   const rl=fsel([['\u05e2\u05d5\u05d1\u05d3','\u05e2\u05d5\u05d1\u05d3'],['\u05de\u05e0\u05d4\u05dc','\u05de\u05e0\u05d4\u05dc']],'\u05e2\u05d5\u05d1\u05d3');
   let newE=EMOJIS[0];
   const epg=el('div',{className:'ep-grid'});
   EMOJIS.forEach((e,i)=>{const s=el('span',{className:'ep-item'+(i===0?' sel':'')},e);s.onclick=()=>{epg.querySelectorAll('.ep-item').forEach(x=>x.classList.remove('sel'));s.classList.add('sel');newE=e;};epg.appendChild(s);});
-  const sv2=btn('\u2713 \u05d4\u05d5\u05e1\u05e3 \u05e2\u05d5\u05d1\u05d3','var(--red)',async ()=>{
+  const addBtn=btn('\u2713 \u05d4\u05d5\u05e1\u05e3 \u05e2\u05d5\u05d1\u05d3','var(--red)',async ()=>{
     if(!ni.value.trim()||!ei.value||!pi.value){toast('\u05de\u05dc\u05d0 \u05d0\u05ea \u05db\u05dc \u05d4\u05e9\u05d3\u05d5\u05ea');return;}
     if(DB.users.find(u=>u.email===ei.value.toLowerCase())){toast('\u05de\u05d9\u05d9\u05dc \u05db\u05d1\u05e8 \u05e7\u05d9\u05d9\u05dd');return;}
     if(pi.value.length<4){toast('\u05e1\u05d9\u05e1\u05de\u05d0 \u05e7\u05e6\u05e8\u05d4');return;}
     const u={id:'u'+Date.now(),name:ni.value.trim(),email:ei.value.toLowerCase(),pass:pi.value,role:rl.value,emoji:newE,color:COLS[DB.users.length%COLS.length]};
     DB.users.push(u);save();
+    // Show credentials card
     const cc=el('div',{style:{background:'#e8f5e4',border:'1px solid rgba(106,154,90,.4)',borderRadius:'12px',padding:'14px',marginBottom:'10px'}});
     cc.appendChild(el('div',{style:{fontWeight:700,color:'var(--sage)',marginBottom:'8px'}},'\u2705 \u05e2\u05d5\u05d1\u05d3 \u05e0\u05d5\u05e6\u05e8!'));
-    cc.appendChild(el('div',{style:{fontFamily:'monospace',fontSize:'13px',background:'var(--white)',borderRadius:'8px',padding:'10px',lineHeight:2}},'\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4\n\uD83D\uDC64 '+u.name+'\n\uD83D\uDCE7 '+u.email+'\n\uD83D\uDD11 '+u.pass));
+    cc.appendChild(el('div',{style:{fontFamily:'monospace',fontSize:'13px',background:'var(--white)',borderRadius:'8px',padding:'10px',lineHeight:2,direction:'ltr',textAlign:'left'}},
+      '\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4\n'+
+      '\uD83D\uDC64 '+u.name+'\n'+
+      '\uD83D\uDCE7 '+u.email+'\n'+
+      '\uD83D\uDD11 '+u.pass));
     cc.appendChild(btn('\u05e1\u05d2\u05d5\u05e8','var(--mist)',()=>cc.remove(),{color:'var(--soil)',width:'100%',marginTop:'8px',fontSize:'12px'}));
-    ac.before(cc);ni.value='';ei.value='';pi.value='';toast(u.name+' \u05e0\u05d5\u05e1\u05e3/\u05d4 \u2713');renderTab();
+    ac.before(cc);
+    ni.value='';ei.value='';pi.value='';
+    toast(u.name+' \u05e0\u05d5\u05e1\u05e3/\u05d4 \u2713');renderTab();
   },{width:'100%',padding:'12px',marginTop:'9px'});
   ac.appendChild(el('div',{className:'flab'},'\u05e9\u05dd'));ac.appendChild(ni);
   ac.appendChild(el('div',{className:'flab'},'\u05de\u05d9\u05d9\u05dc'));ac.appendChild(ei);
   ac.appendChild(el('div',{className:'flab'},'\u05e1\u05d9\u05e1\u05de\u05d0'));ac.appendChild(pi);
   ac.appendChild(el('div',{className:'flab'},'\u05ea\u05e4\u05e7\u05d9\u05d3'));ac.appendChild(rl);
   ac.appendChild(el('div',{className:'flab'},'\u05d0\u05de\u05d5\u05d2\u05f3\u05d9'));ac.appendChild(epg);
-  ac.appendChild(sv2);main.appendChild(ac);
+  ac.appendChild(addBtn);
+  main.appendChild(ac);
 
   // Email section
-  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,margin:'16px 0 10px'}},'\uD83D\uDCE7 \u05e9\u05dc\u05d9\u05d7\u05ea \u05de\u05d9\u05d9\u05dc\u05d9\u05dd'));
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700,margin:'16px 0 8px',color:'var(--clay)'}},'📧 שליחת מיילים'));
   main.appendChild(card([
-    el('div',{className:'card-t'},'\uD83D\uDCEC \u05e1\u05d9\u05db\u05d5\u05de\u05d9\u05dd \u05d9\u05d5\u05de\u05d9\u05d9\u05dd \u05d5\u05d7\u05d5\u05d3\u05e9\u05d9\u05d9\u05dd'),
     el('div',{style:{display:'flex',gap:'8px',flexDirection:'column'}},[
-      btn('\uD83D\uDCCA \u05e9\u05dc\u05d7 \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u05e2\u05db\u05e9\u05d9\u05d5','var(--earth)',async ()=>{
+      btn('\uD83D\uDCCA \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u05e2\u05db\u05e9\u05d9\u05d5','var(--earth)',async ()=>{
         toast('\u05de\u05db\u05d9\u05df...',4000);
         const now2=new Date();const mKey2=now2.getFullYear()+'-'+String(now2.getMonth()+1).padStart(2,'0');
         if(DB.emailLog)delete DB.emailLog['monthly-'+mKey2];
         await sendMonthlySummary();toast('\u05e0\u05e9\u05dc\u05d7 \u2713');
       },{width:'100%'}),
-      btn('\uD83D\uDCEC \u05e9\u05dc\u05d7 \u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05e2\u05db\u05e9\u05d9\u05d5','var(--sage)',async ()=>{
+      btn('\uD83D\uDCEC \u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05dc\u05e6\u05d5\u05d5\u05ea','var(--sage)',async ()=>{
         toast('\u05e9\u05d5\u05dc\u05d7...',4000);
         const t=tdk();if(DB.emailLog)delete DB.emailLog[t];
         await sendDailyDigest();toast('\u05e0\u05e9\u05dc\u05d7 \u2713');
       },{width:'100%'}),
     ])
   ]));
+
   const sentToday=DB.emailLog&&DB.emailLog[tdk()]==='sent';
   main.appendChild(card([el('div',{style:{fontSize:'12px',color:'var(--clay)',display:'flex',gap:'8px',alignItems:'center'}},[
     el('span',{style:{fontSize:'18px'}},sentToday?'\u2705':'\uD83D\uDCED'),
-    el('span',{},sentToday?'\u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05e0\u05e9\u05dc\u05d7 \u05d4\u05d9\u05d5\u05dd':'\u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05d8\u05e8\u05dd \u05e0\u05e9\u05dc\u05d7 \u05d4\u05d9\u05d5\u05dd')
+    el('span',{},sentToday?'\u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05e0\u05e9\u05dc\u05d7':'\u05e1\u05d9\u05db\u05d5\u05dd \u05d9\u05d5\u05de\u05d9 \u05d8\u05e8\u05dd \u05e0\u05e9\u05dc\u05d7')
   ])],{background:'var(--mist)'}));
 }
 
