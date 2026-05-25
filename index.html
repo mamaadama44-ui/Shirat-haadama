@@ -1341,29 +1341,32 @@ function rMaintenance(main){
 function equipRow(e){
   const condColor=e.cond<50?'var(--red)':e.cond<70?'var(--straw)':'var(--sage)';
   const area=AREAS[e.area];
+  const freqLabel={'daily':'יומי','weekly':'שבועי','monthly':'חודשי','yearly':'שנתי','specific':'תאריך'}[e.freq]||'';
   const r=el('div',{style:{display:'flex',alignItems:'center',gap:'12px',padding:'10px 0',borderBottom:'1px solid var(--mist)'}});
   r.appendChild(el('div',{style:{fontSize:'24px',width:'36px',textAlign:'center',flexShrink:0}},e.icon));
   const info=el('div',{style:{flex:1}});
   info.appendChild(el('div',{style:{fontWeight:700,fontSize:'13px'}},e.name));
   info.appendChild(el('div',{style:{display:'flex',gap:'6px',marginTop:'2px',flexWrap:'wrap'}},[
     area?el('span',{style:{fontSize:'10px',color:area.c,fontWeight:600}},area.l):'',
+    freqLabel?el('span',{style:{fontSize:'10px',color:'var(--clay)',background:'var(--mist)',padding:'1px 6px',borderRadius:'6px'}},freqLabel):'',
     el('span',{style:{fontSize:'10px',color:'var(--clay)'}},`טיפול הבא: ${fd(e.nextSvc)}`),
   ]));
+  if(e.desc)info.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'2px',fontStyle:'italic'}},e.desc));
   info.appendChild(el('div',{style:{marginTop:'4px'}},pbar(e.cond,condColor,5)));
   r.appendChild(info);
   r.appendChild(el('div',{style:{textAlign:'center',minWidth:'36px'}},[
     el('div',{style:{fontWeight:700,fontSize:'14px',color:condColor}},e.cond+'%'),
   ]));
-  if(ME.role==='מنهل'){
-    const eb=el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 8px',fontSize:'11px',cursor:'pointer'},onclick:()=>editEquip(e)},'ערוך');
-    r.appendChild(eb);
+  if(ME.role==='\u05de\u05e0\u05d4\u05dc'){
+    r.appendChild(el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 8px',fontSize:'11px',cursor:'pointer'},onclick:()=>editEquip(e)},'ערוך'));
+    r.appendChild(el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.4},onclick:()=>{if(!confirm('למחוק '+e.name+'?'))return;DB.equip=DB.equip.filter(x=>x.id!==e.id);save();renderTab();}},'🗑'));
   }
   return r;
 }
 
 function editEquip(e){
   const isNew=!e;
-  if(isNew)e={id:'e'+Date.now(),name:'',icon:'🔧',cond:100,lastSvc:tdk(),nextSvc:'',cost:0,notes:'',area:'admin',repairLog:[]};
+  if(isNew)e={id:'e'+Date.now(),name:'',icon:'🔧',cond:100,lastSvc:tdk(),nextSvc:'',cost:0,notes:'',area:'animals',repairLog:[],desc:'',freq:'monthly'};
   if(!e.repairLog)e.repairLog=[];
   const bg=el('div',{className:'modal-bg'});
   const box=el('div',{className:'modal'});
@@ -1371,20 +1374,26 @@ function editEquip(e){
 
   const nameInp=finp({value:e.name,placeholder:'שם הציוד'});
   const iconInp=finp({value:e.icon,placeholder:'אמוג׳י'});
+  const descInp=finp({value:e.desc||'',placeholder:'תיאור קצר (אופציונלי)'});
   const condInp=finp({type:'number',min:'0',max:'100',value:String(e.cond)});
   const costInp=finp({type:'number',value:String(e.cost||0)});
   const lastInp=finp({type:'date',value:e.lastSvc||''});
   const nextInp=finp({type:'date',value:e.nextSvc||''});
   const notesInp=finp({value:e.notes||'',placeholder:'הערות'});
-  const areaSel=fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),e.area||'admin');
+  const areaSel=fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),e.area||'animals');
+  const freqSel=fsel([['daily','יומי'],['weekly','שבועי'],['monthly','חודשי'],['yearly','שנתי'],['specific','תאריך ספציפי']],e.freq||'monthly');
 
   box.appendChild(el('div',{className:'fgrid'},[
     el('div',{},[el('div',{className:'flab'},'שם'),nameInp]),
     el('div',{},[el('div',{className:'flab'},'אמוג׳י'),iconInp]),
   ]));
-  box.appendChild(el('div',{className:'flab'},'אזור'));box.appendChild(areaSel);
+  box.appendChild(el('div',{className:'flab'},'תיאור'));box.appendChild(descInp);
+  box.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'אזור'),areaSel]),
+    el('div',{},[el('div',{className:'flab'},'תדירות טיפול'),freqSel]),
+  ]));
 
-  // Condition slider with visual
+  // Condition slider
   const condDisplay=el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'24px',fontWeight:900,textAlign:'center',color:'var(--sage)',margin:'4px 0'}},e.cond+'%');
   condInp.type='range';
   condInp.style.cssText='width:100%;margin:4px 0;';
@@ -1396,15 +1405,14 @@ function editEquip(e){
   box.appendChild(condDisplay);
   box.appendChild(condInp);
 
-  // Quick adjust buttons
+  // Quick buttons
   const adjRow=el('div',{style:{display:'flex',gap:'5px',marginBottom:'8px'}});
-  [[-20,'🔴 -20%'],[-10,'🟠 -10%'],[+10,'🟢 +10%'],[+20,'💚 +20%'],['100','✅ תקין לחלוטין']].forEach(([v,l])=>{
+  [[-20,'🔴 -20%'],[-10,'🟠 -10%'],[+10,'🟢 +10%'],[+20,'💚 +20%'],['100','✅ תקין']].forEach(([v,l])=>{
     adjRow.appendChild(el('button',{style:{flex:1,padding:'4px 2px',fontSize:'10px',background:'var(--mist)',border:'none',borderRadius:'5px',cursor:'pointer',fontFamily:'inherit'},
       onclick:()=>{
-        const newVal=v==='100'?100:Math.min(100,Math.max(0,parseInt(condInp.value)+v));
-        condInp.value=newVal;
-        condDisplay.textContent=newVal+'%';
-        condDisplay.style.color=newVal<50?'var(--red)':newVal<70?'var(--straw)':'var(--sage)';
+        const nv=v==='100'?100:Math.min(100,Math.max(0,parseInt(condInp.value)+v));
+        condInp.value=nv;condDisplay.textContent=nv+'%';
+        condDisplay.style.color=nv<50?'var(--red)':nv<70?'var(--straw)':'var(--sage)';
       }},l));
   });
   box.appendChild(adjRow);
@@ -1420,28 +1428,22 @@ function editEquip(e){
 
   // Repair log
   if(e.repairLog&&e.repairLog.length){
-    const logEl=el('div',{style:{maxHeight:'100px',overflowY:'auto',fontSize:'11px',color:'var(--clay)',borderTop:'1px solid var(--mist)',paddingTop:'6px',marginTop:'6px'}});
+    const logEl=el('div',{style:{maxHeight:'80px',overflowY:'auto',fontSize:'11px',color:'var(--clay)',borderTop:'1px solid var(--mist)',paddingTop:'5px',marginTop:'5px'}});
     e.repairLog.slice().reverse().forEach(r=>{
       logEl.appendChild(el('div',{style:{padding:'2px 0'}},new Date(r.ts).toLocaleDateString('he-IL')+' — '+r.note+(r.cost?' ('+r.cost+'₪)':'')+(r.condChange?' '+r.condBefore+'%→'+r.condAfter+'%':'')));
     });
-    box.appendChild(el('div',{className:'flab'},'היסטוריית תיקונים'));
-    box.appendChild(logEl);
+    box.appendChild(el('div',{className:'flab'},'היסטוריה'));box.appendChild(logEl);
   }
 
-  // Partial repair note
   const repairNote=fta({placeholder:'הערת תיקון (אופציונלי)',style:{minHeight:'40px',marginTop:'4px'}});
-  box.appendChild(el('div',{className:'flab'},'הוסף הערת תיקון'));
-  box.appendChild(repairNote);
+  box.appendChild(el('div',{className:'flab'},'הערת תיקון'));box.appendChild(repairNote);
 
   box.appendChild(btn('שמור','var(--sage)',()=>{
-    const oldCond=e.cond;
-    const newCond=parseInt(condInp.value)||0;
-    e.name=nameInp.value.trim()||e.name;
-    e.icon=iconInp.value||'🔧';
+    const oldCond=e.cond;const newCond=parseInt(condInp.value)||0;
+    e.name=nameInp.value.trim()||e.name;e.icon=iconInp.value||'🔧';
+    e.desc=descInp.value.trim();e.freq=freqSel.value;
     e.cond=newCond;e.area=areaSel.value;
-    e.cost=parseInt(costInp.value)||0;
-    e.lastSvc=lastInp.value;e.nextSvc=nextInp.value;e.notes=notesInp.value;
-    // Log repair if condition changed or note added
+    e.cost=parseInt(costInp.value)||0;e.lastSvc=lastInp.value;e.nextSvc=nextInp.value;e.notes=notesInp.value;
     if(repairNote.value.trim()||newCond!==oldCond){
       if(!e.repairLog)e.repairLog=[];
       e.repairLog.push({ts:Date.now(),note:repairNote.value.trim(),cost:e.cost,condBefore:oldCond,condAfter:newCond,condChange:newCond!==oldCond,by:ME.id,byName:ME.name});
