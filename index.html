@@ -989,16 +989,21 @@ function rInventory(main){
         ]):el('div',{style:{fontSize:'12px',color:'var(--clay)',fontStyle:'italic',borderTop:'1px solid var(--mist)',paddingTop:'8px',marginTop:'4px'}},'אין מוצרים עדיין'),
         // Add product row (manager)
         ME.role==='\u05de\u05e0\u05d4\u05dc'?addSupplierProductRow(sup):el('span'),
-        // Shortage from linked inv items
+        // All linked inventory items
         (()=>{
-          const linked=DB.inv.filter(i=>i.supplierId===sup.id&&i.qty<i.minQty);
-          return linked.length?el('div',{style:{background:'#fff0ee',borderRadius:'6px',padding:'6px 8px',marginTop:'6px',fontSize:'12px'}},[
-            el('div',{style:{color:'var(--red)',fontWeight:600,marginBottom:'3px'}},'⚠️ חסר במלאי:'),
-            ...linked.map(i=>el('div',{style:{display:'flex',justifyContent:'space-between'}},[
-              el('span',{},i.icon+' '+i.name),
-              el('span',{style:{color:'var(--red)',fontWeight:600}},(i.minQty-i.qty)+' '+i.unit),
-            ]))
-          ]):el('span');
+          const linked=DB.inv.filter(i=>i.supplierId===sup.id);
+          if(!linked.length)return el('span');
+          return el('div',{style:{borderTop:'1px solid var(--mist)',paddingTop:'6px',marginTop:'6px'}},[
+            el('div',{style:{fontSize:'11px',fontWeight:700,color:'var(--clay)',marginBottom:'4px'}},'פריטי מלאי מקושרים:'),
+            ...linked.map(i=>{
+              const isLow=i.qty<i.minQty;
+              return el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'3px 6px',background:isLow?'rgba(200,90,58,.06)':'var(--mist)',borderRadius:'6px',marginBottom:'2px',fontSize:'12px'}},[
+                el('span',{},i.icon),
+                el('span',{style:{flex:1}},i.name),
+                el('span',{style:{color:isLow?'var(--red)':'var(--clay)',fontWeight:isLow?700:400}},i.qty+'/'+i.minQty+' '+i.unit+(isLow?' ⚠️':'')),
+              ]);
+            })
+          ]);
         })(),
       ]);
       main.appendChild(c);
