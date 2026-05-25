@@ -987,7 +987,9 @@ function rInventory(main){
             ]))
           ])
         ]):el('div',{style:{fontSize:'12px',color:'var(--clay)',fontStyle:'italic',borderTop:'1px solid var(--mist)',paddingTop:'8px',marginTop:'4px'}},'אין מוצרים עדיין'),
-        // Add product row (manager)
+        // Manage linked inventory button
+        ME.role==='\u05de\u05e0\u05d4\u05dc'?btn('\uD83D\uDCE6 נהל פריטי מלאי מקושרים','var(--mist)',()=>manageSupplierInv(sup),{width:'100%',marginTop:'6px',fontSize:'12px',color:'var(--clay)'}):'',
+        // Add custom product row (manager)
         ME.role==='\u05de\u05e0\u05d4\u05dc'?addSupplierProductRow(sup):el('span'),
         // All linked inventory items
         (()=>{
@@ -1055,6 +1057,50 @@ function rInventory(main){
       main.appendChild(c);
     });
   }
+}
+
+function manageSupplierInv(sup){
+  const bg=el('div',{className:'modal-bg'});
+  const box=el('div',{className:'modal'});
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'\uD83D\uDCE6 פריטי מלאי — '+sup.name));
+  box.appendChild(el('div',{style:{fontSize:'12px',color:'var(--clay)',marginBottom:'10px'}},'סמן את הפריטים שספק זה מספק:'));
+
+  if(!DB.inv.length){
+    box.appendChild(el('div',{style:{textAlign:'center',color:'var(--clay)',padding:'20px',fontSize:'13px'}},'אין פריטי מלאי עדיין. הוסף פריטים בטאב מלאי.'));
+  } else {
+    const listEl=el('div',{style:{maxHeight:'300px',overflowY:'auto',border:'1px solid var(--parch)',borderRadius:'8px',padding:'4px'}});
+    const renderList=()=>{
+      listEl.innerHTML='';
+      DB.inv.forEach(item=>{
+        const isLinked=item.supplierId===sup.id;
+        const row=el('div',{style:{display:'flex',alignItems:'center',gap:'10px',padding:'8px',borderRadius:'7px',cursor:'pointer',background:isLinked?'rgba(106,154,90,.08)':'transparent',marginBottom:'2px',transition:'background .15s'}});
+        const chk=el('div',{style:{width:'20px',height:'20px',borderRadius:'5px',flexShrink:0,border:isLinked?'none':'1.5px solid var(--parch)',background:isLinked?'var(--sage)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .15s'}},isLinked?el('span',{style:{color:'#fff',fontSize:'12px',fontWeight:700}},'✓'):'');
+        row.appendChild(chk);
+        row.appendChild(el('span',{style:{fontSize:'16px'}},item.icon));
+        const info=el('div',{style:{flex:1}});
+        info.appendChild(el('div',{style:{fontWeight:isLinked?600:400,fontSize:'13px'}},item.name));
+        info.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)'}},item.qty+' '+item.unit+' (מינ: '+item.minQty+')'));
+        row.appendChild(info);
+        if(isLinked)row.appendChild(el('span',{style:{fontSize:'11px',color:'var(--sage)',fontWeight:600}},'מקושר ✓'));
+        row.onclick=()=>{
+          if(item.supplierId===sup.id){
+            delete item.supplierId;
+          } else {
+            // Remove from previous supplier
+            item.supplierId=sup.id;
+          }
+          save();renderList();
+        };
+        listEl.appendChild(row);
+      });
+    };
+    renderList();
+    box.appendChild(listEl);
+  }
+
+  box.appendChild(btn('סגור','var(--mist)',()=>{bg.remove();renderTab();},{width:'100%',marginTop:'12px',color:'var(--soil)'}));
+  bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg){bg.remove();renderTab();}});
+  document.body.appendChild(bg);
 }
 
 function addSupplierProductRow(sup){
