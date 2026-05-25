@@ -956,51 +956,54 @@ function rInventory(main){
   } else if(invTab==='suppliers'){
     if(!DB.suppliers)DB.suppliers=[];
     DB.suppliers.forEach(sup=>{
-      const supItems=(sup.items||[]).map(id=>DB.inv.find(i=>i.id===id)).filter(Boolean);
-      const shortageItems=supItems.filter(i=>i.qty<i.minQty);
+      if(!sup.products)sup.products=[];
       const c=card([
+        // Header
         el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'8px'}},[
-          el('div',{},[
+          el('div',{style:{flex:1}},[
             el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700}},sup.name),
-            el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px'}},[
-              el('span',{style:{background:'var(--mist)',padding:'1px 7px',borderRadius:'8px',marginLeft:'4px'}},sup.category),
-              sup.phone?el('span',{},'\uD83D\uDCDE '+sup.phone):'',
+            el('div',{style:{display:'flex',gap:'6px',alignItems:'center',marginTop:'3px'}},[
+              el('span',{style:{background:'var(--mist)',padding:'1px 8px',borderRadius:'8px',fontSize:'11px'}},sup.category||'כללי'),
+              sup.phone?el('a',{href:'tel:'+sup.phone,style:{fontSize:'11px',color:'var(--sage)',textDecoration:'none'}},'\uD83D\uDCDE '+sup.phone):'',
             ]),
+            sup.notes?el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'3px',fontStyle:'italic'}},sup.notes):'',
           ]),
-          el('div',{style:{display:'flex',gap:'4px'}},[
-            ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer'},onclick:()=>editSupplier(sup)},'✏️'):'',
-            ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.5},onclick:()=>{if(confirm('למחוק?')){DB.suppliers=DB.suppliers.filter(s=>s.id!==sup.id);save();renderTab();}}},'🗑'):'',
-          ])
+          ME.role==='\u05de\u05e0\u05d4\u05dc'?el('div',{style:{display:'flex',gap:'4px'}},[
+            el('button',{style:{background:'none',border:'none',fontSize:'14px',cursor:'pointer'},onclick:()=>editSupplier(sup)},'✏️'),
+            el('button',{style:{background:'none',border:'none',fontSize:'13px',cursor:'pointer',opacity:.5},onclick:()=>{if(confirm('למחוק ספק?')){DB.suppliers=DB.suppliers.filter(s=>s.id!==sup.id);save();renderTab();}}},'🗑'),
+          ]):'',
         ]),
-        shortageItems.length?el('div',{style:{background:'#fff0ee',borderRadius:'6px',padding:'6px 8px',marginBottom:'6px',fontSize:'12px'}},[
-          el('div',{style:{color:'var(--red)',fontWeight:600,marginBottom:'3px'}},'⚠️ חסר להזמין:'),
-          ...shortageItems.map(i=>el('div',{style:{display:'flex',justifyContent:'space-between',padding:'1px 0'}},[
-            el('span',{},i.icon+' '+i.name),
-            el('span',{style:{color:'var(--red)',fontWeight:600}},i.minQty-i.qty+' '+i.unit),
-          ]))
-        ]):'',
-        supItems.length?el('div',{style:{marginTop:'6px'}},[
-          ...supItems.map(i=>el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'4px 0',fontSize:'12px',borderBottom:'1px solid var(--mist)'}},[
-            el('span',{style:{fontSize:'16px'}},i.icon),
-            el('span',{style:{flex:1}},i.name),
-            el('span',{style:{color:i.qty<i.minQty?'var(--red)':'var(--clay)',fontSize:'11px'}},i.qty+' '+i.unit+(i.qty<i.minQty?' ⚠️':'')),
-          ]))
-        ]):el('div',{style:{fontSize:'12px',color:'var(--clay)',fontStyle:'italic',marginTop:'4px'}},'אין פריטים — לחץ ✏️ לשיוך מוצרים'),
-        sup.notes?el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'4px',fontStyle:'italic'}},sup.notes):'',
-        shortageItems.length?btn('\uD83D\uDCE7 שלח מייל הזמנה','var(--red)',async ()=>{
-          const lines=['\u05d1\u05e7\u05e9\u05ea \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d0\u05ea \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4:',''];
-          shortageItems.forEach(i=>lines.push('\u2022 '+i.name+': '+( i.minQty-i.qty).toFixed(1)+' '+i.unit+' (\u05de\u05dc\u05d0\u05d9 \u05e0\u05d5\u05db\u05d7\u05d9: '+i.qty+')'));
-          lines.push('','\u05ea\u05d5\u05d3\u05d4,','\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4');
-          const admin=DB.users.find(u=>u.role==='\u05de\u05e0\u05d4\u05dc');
-          if(admin&&admin.email){
-            const ok=await sendEmail(admin.email,admin.name,'\uD83D\uDED2 \u05d4\u05d6\u05de\u05e0\u05d4 \u05de '+sup.name,lines.join('\n'));
-            toast(ok?'\u05de\u05d9\u05d9\u05dc \u05d4\u05d6\u05de\u05e0\u05d4 \u05e0\u05e9\u05dc\u05d7 \u2713':'\u05e9\u05d2\u05d9\u05d0\u05d4');
-          }
-        },{width:'100%',marginTop:'8px',fontSize:'12px'}):'',
+        // Products list
+        sup.products.length?el('div',{style:{borderTop:'1px solid var(--mist)',paddingTop:'8px',marginTop:'4px'}},[
+          el('div',{style:{fontSize:'11px',fontWeight:700,color:'var(--clay)',marginBottom:'5px'}},'מוצרים:'),
+          el('div',{style:{display:'flex',flexDirection:'column',gap:'3px'}},[
+            ...sup.products.map((prod,pi)=>el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'4px 6px',background:'var(--mist)',borderRadius:'6px',fontSize:'12px'}},[
+              el('span',{style:{fontSize:'15px'}},prod.icon||'📦'),
+              el('span',{style:{flex:1,fontWeight:500}},prod.name),
+              prod.price?el('span',{style:{color:'var(--straw)',fontWeight:600}},prod.price+'\u20aa'):'',
+              prod.unit?el('span',{style:{color:'var(--clay)',fontSize:'11px'}},'/'+prod.unit):'',
+              ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'none',border:'none',fontSize:'11px',cursor:'pointer',opacity:.6},onclick:()=>editSupplierProduct(sup,pi)},'✏️'):'',
+              ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'none',border:'none',fontSize:'11px',cursor:'pointer',opacity:.4},onclick:()=>{if(!confirm('למחוק?'))return;sup.products.splice(pi,1);save();renderTab();}},'🗑'):'',
+            ]))
+          ])
+        ]):el('div',{style:{fontSize:'12px',color:'var(--clay)',fontStyle:'italic',borderTop:'1px solid var(--mist)',paddingTop:'8px',marginTop:'4px'}},'אין מוצרים עדיין'),
+        // Add product row (manager)
+        ME.role==='\u05de\u05e0\u05d4\u05dc'?addSupplierProductRow(sup):el('span'),
+        // Shortage from linked inv items
+        (()=>{
+          const linked=DB.inv.filter(i=>i.supplierId===sup.id&&i.qty<i.minQty);
+          return linked.length?el('div',{style:{background:'#fff0ee',borderRadius:'6px',padding:'6px 8px',marginTop:'6px',fontSize:'12px'}},[
+            el('div',{style:{color:'var(--red)',fontWeight:600,marginBottom:'3px'}},'⚠️ חסר במלאי:'),
+            ...linked.map(i=>el('div',{style:{display:'flex',justifyContent:'space-between'}},[
+              el('span',{},i.icon+' '+i.name),
+              el('span',{style:{color:'var(--red)',fontWeight:600}},(i.minQty-i.qty)+' '+i.unit),
+            ]))
+          ]):el('span');
+        })(),
       ]);
       main.appendChild(c);
     });
-    if(ME.role==='\u05de\u05e0\u05d4\u05dc') main.appendChild(btn('➕ ספק חדש','var(--sage)',()=>editSupplier(null),{width:'100%',marginTop:'10px'}));
+    if(ME.role==='\u05de\u05e0\u05d4\u05dc')main.appendChild(btn('➕ ספק חדש','var(--sage)',()=>editSupplier(null),{width:'100%',marginTop:'10px'}));
 
   } else if(invTab==='orders'){
     // Auto-generate order list from shortage
@@ -1049,54 +1052,67 @@ function rInventory(main){
   }
 }
 
+function addSupplierProductRow(sup){
+  const row=el('div',{style:{display:'flex',gap:'5px',alignItems:'center',marginTop:'6px'}});
+  const inp=finp({placeholder:'הוסף מוצר...',style:{fontSize:'12px',padding:'5px 8px'}});
+  const addBtn=btn('+','var(--sage)',()=>{
+    const name=inp.value.trim();if(!name)return;
+    if(!sup.products)sup.products=[];
+    sup.products.push({id:'sp'+Date.now(),name,icon:'📦',price:'',unit:''});
+    save();renderTab();
+  },{padding:'5px 10px',fontSize:'13px',borderRadius:'6px'});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')addBtn.click();});
+  row.appendChild(inp);row.appendChild(addBtn);
+  return row;
+}
+
+function editSupplierProduct(sup,pi){
+  const prod=sup.products[pi];
+  const bg=el('div',{className:'modal-bg'});
+  const box=el('div',{className:'modal'});
+  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'✏️ עריכת מוצר'));
+  const nameInp=finp({value:prod.name,placeholder:'שם המוצר'});
+  const iconInp=finp({value:prod.icon||'📦',placeholder:'אמוג׳י'});
+  const priceInp=finp({type:'number',value:prod.price||'',placeholder:'מחיר ₪'});
+  const unitInp=finp({value:prod.unit||'',placeholder:'יחידה (ק"ג, ליטר...)'});
+  box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(nameInp);
+  box.appendChild(el('div',{className:'fgrid'},[
+    el('div',{},[el('div',{className:'flab'},'אמוג׳י'),iconInp]),
+    el('div',{},[el('div',{className:'flab'},'יחידה'),unitInp]),
+  ]));
+  box.appendChild(el('div',{className:'flab'},'מחיר ₪'));box.appendChild(priceInp);
+  box.appendChild(btn('שמור','var(--sage)',()=>{
+    prod.name=nameInp.value.trim()||prod.name;
+    prod.icon=iconInp.value||'📦';
+    prod.price=priceInp.value;
+    prod.unit=unitInp.value;
+    save();bg.remove();toast('נשמר \u2713');renderTab();
+  },{width:'100%',marginTop:'10px'}));
+  box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
+  bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
+}
+
 function editSupplier(sup){
   const isNew=!sup;
-  if(isNew)sup={id:'s'+Date.now(),name:'',category:'',phone:'',email:'',notes:'',items:[]};
-  if(!sup.items)sup.items=[];
+  if(isNew)sup={id:'s'+Date.now(),name:'',category:'',phone:'',email:'',notes:'',items:[],products:[]};
+  if(!sup.products)sup.products=[];
   const bg=el('div',{className:'modal-bg'});
   const box=el('div',{className:'modal'});
   box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'14px'}},isNew?'ספק חדש':'עריכת ספק'));
   const nameInp=finp({value:sup.name,placeholder:'שם הספק'});
   const catInp=finp({value:sup.category,placeholder:'קטגוריה (חקלאות, בניה...)'});
   const phoneInp=finp({value:sup.phone,placeholder:'טלפון'});
-  const emailInp=finp({type:'email',value:sup.email||'',placeholder:'מייל ספק'});
-  const notesInp=fta({value:sup.notes||'',placeholder:'הערות',style:{minHeight:'50px'}});
-
-  // Item assignment
-  const itemListEl=el('div',{style:{maxHeight:'180px',overflowY:'auto',border:'1px solid var(--parch)',borderRadius:'8px',padding:'4px'}});
-  let selItems=[...sup.items];
-  const renderItems=()=>{
-    itemListEl.innerHTML='';
-    DB.inv.forEach(item=>{
-      const checked=selItems.includes(item.id);
-      const row=el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'5px',borderRadius:'6px',cursor:'pointer',background:checked?'rgba(106,154,90,.08)':'transparent'}});
-      const chk=el('div',{style:{width:'16px',height:'16px',borderRadius:'3px',flexShrink:0,border:checked?'none':'1.5px solid var(--parch)',background:checked?'var(--sage)':'transparent',display:'flex',alignItems:'center',justifyContent:'center'}},checked?el('span',{style:{color:'#fff',fontSize:'10px'}},'✓'):'');
-      row.appendChild(chk);
-      row.appendChild(el('span',{style:{fontSize:'13px'}},item.icon));
-      row.appendChild(el('span',{style:{fontSize:'12px',flex:1}},item.name));
-      row.onclick=()=>{
-        if(selItems.includes(item.id))selItems=selItems.filter(x=>x!==item.id);
-        else selItems.push(item.id);
-        renderItems();
-      };
-      itemListEl.appendChild(row);
-    });
-  };
-  renderItems();
-
+  const notesInp=fta({value:sup.notes||'',placeholder:'הערות',style:{minHeight:'40px'}});
   box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(nameInp);
   box.appendChild(el('div',{className:'flab'},'קטגוריה'));box.appendChild(catInp);
-  box.appendChild(el('div',{className:'fgrid'},[
-    el('div',{},[el('div',{className:'flab'},'טלפון'),phoneInp]),
-    el('div',{},[el('div',{className:'flab'},'מייל'),emailInp]),
-  ]));
+  box.appendChild(el('div',{className:'flab'},'טלפון'));box.appendChild(phoneInp);
   box.appendChild(el('div',{className:'flab'},'הערות'));box.appendChild(notesInp);
-  box.appendChild(el('div',{className:'flab'},'פריטים מסופקים'));box.appendChild(itemListEl);
   box.appendChild(btn('שמור','var(--sage)',()=>{
     sup.name=nameInp.value.trim();if(!sup.name){toast('חסר שם');return;}
-    sup.category=catInp.value.trim();sup.phone=phoneInp.value.trim();
-    sup.email=emailInp.value.trim();sup.notes=notesInp.value.trim();
-    sup.items=selItems;
+    sup.category=catInp.value.trim();
+    sup.phone=phoneInp.value.trim();
+    sup.notes=notesInp.value.trim();
     if(!DB.suppliers)DB.suppliers=[];
     if(isNew)DB.suppliers.push(sup);
     save();bg.remove();toast('ספק נשמר \u2713');renderTab();
@@ -1129,6 +1145,9 @@ function editInv(item){
     el('div',{},[el('div',{className:'flab'},'מינימום'),minInp]),
   ]));
   box.appendChild(el('div',{className:'flab'},'יחידה'));box.appendChild(unitSel);
+  // Supplier selector
+  const supSel=fsel([['','ללא ספק'],...(DB.suppliers||[]).map(s=>[s.id,s.name])],item.supplierId||'');
+  box.appendChild(el('div',{className:'flab'},'ספק מספק'));box.appendChild(supSel);
   box.appendChild(el('div',{className:'flab'},'תיאור'));box.appendChild(descInp);
   box.appendChild(btn('שמור','var(--sage)',()=>{
     const name=nameInp.value.trim();
@@ -1140,6 +1159,7 @@ function editInv(item){
     item.unit=unitSel.value;
     item.invCat=catSel.value;
     item.desc=descInp.value.trim();
+    item.supplierId=supSel.value||'';
     if(isNew)DB.inv.push(item);
     save();bg.remove();toast('נשמר \u2713');renderTab();
   },{width:'100%',marginTop:'12px'}));
@@ -1912,6 +1932,9 @@ function editProject(p){
 
   box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},isNew?'פרויקט חדש':'עריכת פרויקט'));
   box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(titleInp);
+  // Supplier selector
+  const supSel=fsel([['','ללא ספק'],...(DB.suppliers||[]).map(s=>[s.id,s.name])],item.supplierId||'');
+  box.appendChild(el('div',{className:'flab'},'ספק מספק'));box.appendChild(supSel);
   box.appendChild(el('div',{className:'flab'},'תיאור'));box.appendChild(descInp);
   const dr=el('div',{className:'fgrid'});
   dr.appendChild(el('div',{},[el('div',{className:'flab'},'התחלה'),startInp]));
