@@ -2,9 +2,33 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>שירת האדמה</title>
-<link id="favicon" rel="icon" type="image/jpeg" href="">
+
+<!-- PWA: Manifest -->
+<link rel="manifest" href="manifest.json">
+
+<!-- PWA: Theme colors -->
+<meta name="theme-color" content="#1a1205">
+<meta name="background-color" content="#1a1205">
+
+<!-- PWA: iOS support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="שירת האדמה">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+
+<!-- PWA: Android/Chrome -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="שירת האדמה">
+
+<!-- Favicon -->
+<link id="favicon" rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+
 <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -116,9 +140,6 @@ const LOGO='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHB
 
 const EMOJIS=['🧑‍🌾','👨‍🌾','👩‍🌾','🐓','🌿','🌻','🦎','🐇','🌾','🥕','🍅','🌺'];
 const COLS=['#C85A3A','#6a9a5a','#6b4a2a','#6a4a8e','#2a5a6e','#b8832a','#d4633a','#2a6e5a'];
-
-// Set favicon from logo
-document.getElementById('favicon').href=LOGO;
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const PLANTS={
   'סלק':{emoji:'🟣',depth:'2-3 ס"מ',spacing:'10-15 ס"מ',harvest:'60-70 יום',water:'בינוני',tips:'זריעה ישירה, דלל לאחר נביטה',months:[1,2,8,9,10,11,12],type:'שורש'},
@@ -3871,6 +3892,185 @@ function renderFirstAdmin(){
     el('button',{className:'btn-main',onclick:reg},'צור חשבון מנהל ←'),
   ])]));
 }
+
+// ============ PWA: Service Worker & Install Prompt ============
+let deferredInstallPrompt = null;
+
+// Register service worker (only when served from http/https, not file://)
+if('serviceWorker' in navigator && location.protocol !== 'file:'){
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('service-worker.js');
+      console.log('[PWA] Service Worker registered:', reg.scope);
+      // Listen for updates
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if(newWorker){
+          newWorker.addEventListener('statechange', () => {
+            if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
+              console.log('[PWA] New version available');
+              // Show toast notifying about update (only if app is loaded)
+              setTimeout(() => {
+                const t = document.getElementById('toast');
+                if(t){
+                  t.textContent = '🔄 גרסה חדשה זמינה - רענן את הדף';
+                  t.classList.add('show');
+                  setTimeout(()=>t.classList.remove('show'), 5000);
+                }
+              }, 2000);
+            }
+          });
+        }
+      });
+    } catch(err){
+      console.error('[PWA] Service Worker registration failed:', err);
+    }
+  });
+}
+
+// Listen for the beforeinstallprompt event (Android/Chrome)
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  console.log('[PWA] Install prompt available');
+  // Show install button if user is logged in
+  setTimeout(showInstallButton, 1500);
+});
+
+window.addEventListener('appinstalled', () => {
+  console.log('[PWA] App installed');
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('pwa-install-btn');
+  if(btn) btn.remove();
+  // Show success toast
+  const t = document.getElementById('toast');
+  if(t){
+    t.textContent = '🎉 האפליקציה הותקנה!';
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 3000);
+  }
+});
+
+// Detect iOS for showing different install instructions
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+function isInStandaloneMode(){
+  return ('standalone' in navigator) && navigator.standalone ||
+         window.matchMedia('(display-mode: standalone)').matches;
+}
+
+function showInstallButton(){
+  // Don't show if already installed or button exists
+  if(isInStandaloneMode()) return;
+  if(document.getElementById('pwa-install-btn')) return;
+  // Don't show if user dismissed it earlier in this session
+  if(sessionStorage.getItem('pwa-install-dismissed')) return;
+  // Only show if logged in
+  if(!ME) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'pwa-install-btn';
+  btn.innerHTML = '📱 התקן אפליקציה';
+  btn.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:998;background:linear-gradient(135deg,var(--earth),var(--soil));color:var(--gold);border:1px solid var(--gold);border-radius:24px;padding:10px 18px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;gap:6px;animation:slideIn .4s ease-out';
+
+  // Add close button inside
+  const closeBtn = document.createElement('span');
+  closeBtn.innerHTML = '✕';
+  closeBtn.style.cssText = 'opacity:.5;font-size:10px;margin-right:-2px;padding:0 2px';
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    sessionStorage.setItem('pwa-install-dismissed', '1');
+    btn.style.animation = 'slideOut .3s ease-in';
+    setTimeout(() => btn.remove(), 300);
+  };
+  btn.appendChild(closeBtn);
+
+  btn.onclick = async () => {
+    if(deferredInstallPrompt){
+      // Android: trigger native install prompt
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      console.log('[PWA] User choice:', outcome);
+      deferredInstallPrompt = null;
+      btn.remove();
+    } else if(isIOS()){
+      // iOS: show instructions
+      showIOSInstallInstructions();
+    } else {
+      // Other: generic instructions
+      alert('להתקנה, פתח את תפריט הדפדפן ובחר "הוסף למסך הבית"');
+    }
+  };
+
+  document.body.appendChild(btn);
+
+  // Add animation styles if not already
+  if(!document.getElementById('pwa-anim-styles')){
+    const style = document.createElement('style');
+    style.id = 'pwa-anim-styles';
+    style.textContent = `
+      @keyframes slideIn{from{transform:translateY(80px);opacity:0}to{transform:translateY(0);opacity:1}}
+      @keyframes slideOut{from{transform:translateY(0);opacity:1}to{transform:translateY(80px);opacity:0}}
+    `;
+    document.head.appendChild(style);
+  }
+}
+
+function showIOSInstallInstructions(){
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.style.zIndex = '999';
+  bg.onclick = (e) => { if(e.target === bg) bg.remove(); };
+
+  const m = document.createElement('div');
+  m.className = 'modal';
+  m.style.maxWidth = '380px';
+  m.innerHTML = `
+    <div style="text-align:center;margin-bottom:14px">
+      <img src="icons/icon-180.png" style="width:80px;height:80px;border-radius:20px;margin-bottom:10px;box-shadow:0 4px 16px rgba(0,0,0,.2)">
+      <div style="font-family:'Frank Ruhl Libre',serif;font-size:18px;font-weight:900;color:var(--earth)">התקנה באייפון</div>
+      <div style="font-size:11px;color:var(--clay);margin-top:3px">הוסף את האפליקציה למסך הבית</div>
+    </div>
+    <div style="background:var(--mist);border-radius:10px;padding:14px;font-size:13px;line-height:1.8">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+        <span style="background:var(--earth);color:var(--gold);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">1</span>
+        <span>לחץ על כפתור השיתוף <span style="font-size:18px;vertical-align:middle">⎙</span> בתחתית הדפדפן</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+        <span style="background:var(--earth);color:var(--gold);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">2</span>
+        <span>גלול ובחר <b>"הוסף למסך הבית"</b> 📲</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="background:var(--earth);color:var(--gold);width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">3</span>
+        <span>לחץ <b>"הוסף"</b> והאייקון יופיע במסך הבית!</span>
+      </div>
+    </div>
+  `;
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'הבנתי';
+  closeBtn.style.cssText = 'width:100%;margin-top:14px;padding:12px;background:var(--earth);color:var(--gold);border:none;border-radius:10px;font-family:inherit;font-weight:700;cursor:pointer;font-size:13px';
+  closeBtn.onclick = () => bg.remove();
+  m.appendChild(closeBtn);
+
+  bg.appendChild(m);
+  document.body.appendChild(bg);
+}
+
+// Check for iOS install prompt opportunity (since iOS doesn't fire beforeinstallprompt)
+window.addEventListener('load', () => {
+  if(isIOS() && !isInStandaloneMode()){
+    // Wait until user is logged in, then show iOS install button
+    const checkInterval = setInterval(() => {
+      if(ME){
+        clearInterval(checkInterval);
+        setTimeout(showInstallButton, 2000);
+      }
+    }, 1000);
+    // Stop checking after 30 seconds
+    setTimeout(() => clearInterval(checkInterval), 30000);
+  }
+});
 
 init();
 </script>
