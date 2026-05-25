@@ -32,8 +32,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow-x:hidden;max-width:100vw;width:100%;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{font-family:'Heebo',sans-serif;background:var(--cream);color:var(--earth);direction:rtl;min-height:100vh;min-height:-webkit-fill-available;overscroll-behavior-y:contain;touch-action:pan-y}
+/* Safe areas for iPhone notch and home bar */
+.app-hdr{padding-top:calc(12px + env(safe-area-inset-top))!important}
+.app-main{padding-bottom:calc(80px + env(safe-area-inset-bottom))!important;padding-left:calc(12px + env(safe-area-inset-left));padding-right:calc(12px + env(safe-area-inset-right))}
+/* Prevent text and elements from overflowing */
+img,svg,video{max-width:100%;height:auto}
+input,textarea,select,button{max-width:100%;font-family:inherit}
+/* Better tap targets on mobile */
+button{min-height:38px;touch-action:manipulation}
+input,select,textarea{font-size:16px!important;touch-action:manipulation}
+/* Smoother scrolling */
+*{-webkit-overflow-scrolling:touch}
+/* Prevent pull-to-refresh on PWA */
+@media (display-mode:standalone){
+  body{overscroll-behavior-y:none}
+}
 :root{--earth:#1a1205;--soil:#2d1a08;--gold:#e8b84b;--sage:#6a9a5a;--cream:#f5edd8;--parch:#e8d8b8;--mist:#ede0c4;--red:#C85A3A;--white:#fdfaf3;--clay:#6b3d1a;--straw:#b8832a}
-body{font-family:'Heebo',sans-serif;background:var(--cream);color:var(--earth);direction:rtl;min-height:100vh}
+body{font-family:'Heebo',sans-serif;background:var(--cream);color:var(--earth);direction:rtl}
 button{cursor:pointer;font-family:inherit;border:none}
 input,select,textarea{font-family:inherit;direction:rtl}
 input[type=email],input[type=password],input[type=time],input[type=date],input[type=number]{direction:ltr;text-align:left}
@@ -273,7 +290,7 @@ const DEFAULT_DATA = {
 };
 
 let DB = JSON.parse(JSON.stringify(DEFAULT_DATA));
-let ME = null, TAB='tasks', STAB='recurring', HM=new Date().getMonth(), HY=new Date().getFullYear();
+let ME = null, TAB='home', STAB='recurring', HM=new Date().getMonth(), HY=new Date().getFullYear();
 let AF='all', UF='all', ICF='all', SHOWD=false;
 let saveTimeout = null;
 
@@ -349,7 +366,7 @@ function at(){return[...DB.rT,...DB.oT];}
 function gu(id){return DB.users.find(u=>u.id===id);}
 function tdk(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function fd(s){if(!s)return'';return new Date(s+'T00:00:00').toLocaleDateString('he-IL',{day:'numeric',month:'short'});}
-function ch(s,e){const[sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number);return Math.max(0,((eh*60+em)-(sh*60+sm))/60);}
+function ch(s,e){if(!s||!e)return 0;const[sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number);if(isNaN(sh)||isNaN(eh))return 0;return Math.max(0,((eh*60+em)-(sh*60+sm))/60);}
 function gp(uid){let p=0;Object.values(DB.comps).forEach(dc=>{Object.entries(dc).forEach(([tid,by])=>{if(by!==uid)return;const t=at().find(t=>t.id===tid);if(t)p+=PRI[t.pri]?.pts||5;});});Object.values(DB.bonus||{}).flat().filter(b=>b.uid===uid).forEach(b=>p+=b.pts);p+=at().filter(t=>t.createdBy===uid).length*3;return p;}
 // Normalize DB.bonus to an array - Firebase sometimes stores arrays as objects with numeric keys
 function bonusArr(){
@@ -469,7 +486,7 @@ function renderLogin(){
 
 // APP SHELL
 function renderApp(){
-  const root=document.getElementById('root');root.innerHTML='';root.style.cssText='display:flex;flex-direction:column;min-height:100vh';
+  const root=document.getElementById('root');root.innerHTML='';root.style.cssText='display:flex;flex-direction:column;min-height:100vh;min-height:-webkit-fill-available;width:100%;max-width:100vw;overflow-x:hidden';
   const pf=el('div',{className:'prog-fill',style:{width:'0%'}});
   const tw=el('div',{className:'tabs-w'});
   const hdr=el('div',{className:'app-hdr'},[
@@ -489,7 +506,7 @@ function renderApp(){
     el('div',{className:'prog-w'},[el('div',{className:'prog-bg'},[pf])]),tw
   ]);
   const main=el('div',{className:'app-main',id:'app-main'});
-  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 עונות'}];
+  const TABS=[{id:'home',l:'🏠 בית'},{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 עונות'}];
   TABS.forEach(t=>{
     const b=el('button',{className:'tab-btn'+(t.id===TAB?' on':''),onclick:()=>{TAB=t.id;tw.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');renderTab(main,pf);}},t.l);
     tw.appendChild(b);
@@ -514,7 +531,8 @@ function renderTab(mainEl,pfEl){
   const pf=pfEl||window._pf;
   if(!main)return;
   main.innerHTML='';
-  if(TAB==='tasks')rTasks(main);
+  if(TAB==='home')rHome(main);
+  else if(TAB==='tasks')rTasks(main);
   else if(TAB==='act')rActivity(main);
   else if(TAB==='inv')rInventory(main);
   else if(TAB==='maint')rMaintenance(main);
@@ -524,7 +542,7 @@ function renderTab(mainEl,pfEl){
   else if(TAB==='jour')rJournal(main);
   else if(TAB==='sum')rSummary(main);
   else if(TAB==='garden')rGarden(main);
-  else {TAB='tasks';rTasks(main);}
+  else {TAB='home';rHome(main);}
   if(pf){
     const today=tdk();const dayComps=DB.comps[today]||{};
     const todayTasks=DB.rT.length+DB.oT.filter(t=>!t.done).length;
@@ -679,6 +697,283 @@ function openTaskJournal(tid){
   box.appendChild(btn('סגור','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
   bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
   document.body.appendChild(bg);
+}
+
+// ============ HOME DASHBOARD ============
+function rHome(main){
+  const today=tdk();
+  const todayComps=DB.comps[today]||{};
+  const now=new Date();
+  const hour=now.getHours();
+  const isAdmin=ME.role==='\u05de\u05e0\u05d4\u05dc';
+
+  // Greeting based on hour
+  let greeting='ברוך הבא';
+  let greetEmoji='👋';
+  if(hour>=5&&hour<11){greeting='בוקר טוב';greetEmoji='🌅';}
+  else if(hour>=11&&hour<15){greeting='צהריים טובים';greetEmoji='☀️';}
+  else if(hour>=15&&hour<19){greeting='אחר הצהריים טובים';greetEmoji='🌤';}
+  else if(hour>=19&&hour<23){greeting='ערב טוב';greetEmoji='🌆';}
+  else {greeting='לילה טוב';greetEmoji='🌙';}
+
+  // ============ HERO GREETING CARD ============
+  const dayName=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][now.getDay()];
+  const heroCard=el('div',{style:{background:'linear-gradient(135deg,var(--earth),var(--soil) 60%,#3d2510)',borderRadius:'16px',padding:'18px',marginBottom:'14px',color:'var(--gold)',position:'relative',overflow:'hidden',boxShadow:'0 4px 16px rgba(0,0,0,.15)'}});
+  // Decorative bg
+  heroCard.appendChild(el('div',{style:{position:'absolute',top:'-20px',left:'-20px',fontSize:'120px',opacity:.07,pointerEvents:'none',userSelect:'none'}},greetEmoji));
+  heroCard.appendChild(el('div',{style:{position:'relative',zIndex:1}},[
+    el('div',{style:{fontSize:'11px',opacity:.65,fontWeight:600,letterSpacing:'1px',marginBottom:'2px'}},'יום '+dayName+', '+now.toLocaleDateString('he-IL',{day:'numeric',month:'long'})),
+    el('div',{style:{display:'flex',alignItems:'center',gap:'8px',marginTop:'4px'}},[
+      el('span',{style:{fontSize:'30px'}},greetEmoji),
+      el('div',{},[
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,lineHeight:'1.1'}},greeting+','),
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,lineHeight:'1.1',color:'#fff'}},ME.name+' '+ME.emoji),
+      ]),
+    ]),
+  ]));
+  main.appendChild(heroCard);
+
+  // ============ QUICK STATS GRID ============
+  const myMonth=gpm(ME.id,now.getFullYear(),now.getMonth());
+  const myTodayCount=Object.values(todayComps).filter(uid=>uid===ME.id).length;
+  const myMonthHrs=(DB.hoursLog||[]).filter(h=>h.uid===ME.id&&h.date.startsWith(now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0'))).reduce((s,h)=>s+ch(h.start,h.end),0);
+  const openOnce=DB.oT.filter(t=>!t.done).length;
+
+  const statsGrid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'8px',marginBottom:'14px'}});
+  const bigStat=(emoji,value,label,col,tab)=>{
+    const card=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'14px',textAlign:'right',position:'relative',overflow:'hidden',cursor:'pointer',border:'1px solid var(--mist)',transition:'transform .15s,box-shadow .15s',boxShadow:'0 2px 8px rgba(26,18,5,.06)'},onclick:tab?()=>{TAB=tab;renderTab();}:null});
+    card.appendChild(el('div',{style:{position:'absolute',top:'-6px',left:'-6px',fontSize:'46px',opacity:.1,pointerEvents:'none'}},emoji));
+    card.appendChild(el('div',{style:{position:'relative'}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'26px',fontWeight:900,color:col,lineHeight:'1'}},value),
+      el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'4px',fontWeight:600}},label),
+    ]));
+    return card;
+  };
+  statsGrid.appendChild(bigStat('🌟',myMonth.total+'★','הניקוד שלך החודש','var(--gold)','score'));
+  statsGrid.appendChild(bigStat('⏱',myMonthHrs.toFixed(1),"שעות עבודה החודש",'var(--sage)','team'));
+  statsGrid.appendChild(bigStat('✅',myTodayCount,'משימות בוצעו היום','var(--earth)','tasks'));
+  statsGrid.appendChild(bigStat('📋',openOnce,'משימות חד-פעמיות פתוחות','var(--straw)','tasks'));
+  main.appendChild(statsGrid);
+
+  // ============ QUICK HOURS LOG ============
+  const qhCard=el('div',{style:{background:'linear-gradient(135deg,rgba(106,154,90,.1),rgba(232,184,75,.06))',borderRadius:'14px',padding:'14px',marginBottom:'14px',border:'1px solid rgba(106,154,90,.2)'}});
+  qhCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}},[
+    el('span',{style:{fontSize:'18px'}},'⏱'),el('span',{},'רישום מהיר'),
+  ]));
+
+  // Check if there's an open session today
+  const openSession=(DB.hoursLog||[]).find(h=>h.uid===ME.id&&h.date===today&&h.openStart);
+
+  if(openSession){
+    // Show "End day" button + elapsed time
+    const startTime=openSession.openStart;
+    const [sh,sm]=startTime.split(':').map(Number);
+    const elapsed=((now.getHours()*60+now.getMinutes())-(sh*60+sm))/60;
+    qhCard.appendChild(el('div',{style:{background:'rgba(106,154,90,.15)',borderRadius:'10px',padding:'10px 12px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'10px'}},[
+      el('div',{style:{width:'10px',height:'10px',borderRadius:'50%',background:'var(--sage)',animation:'pulse 2s infinite'}}),
+      el('div',{style:{flex:1}},[
+        el('div',{style:{fontSize:'11px',color:'var(--clay)'}},'יום עבודה פתוח'),
+        el('div',{style:{fontSize:'13px',fontWeight:700,color:'var(--earth)'}},'התחיל ב-'+startTime),
+      ]),
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'20px',fontWeight:900,color:'var(--sage)'}},elapsed.toFixed(1)+"ש'"),
+    ]));
+    qhCard.appendChild(el('button',{style:{width:'100%',background:'var(--red)',color:'#fff',border:'none',borderRadius:'10px',padding:'12px',fontSize:'14px',fontWeight:700,fontFamily:'inherit',cursor:'pointer',boxShadow:'0 2px 8px rgba(200,90,58,.25)'},onclick:()=>{
+      const endT=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+      const hrs=ch(openSession.openStart,endT);
+      if(hrs<=0){toast('שעת סיום קודמת להתחלה');return;}
+      if(!confirm('לסיים את יום העבודה?\nהתחלה: '+openSession.openStart+'\nסיום: '+endT+'\nסה"כ: '+hrs.toFixed(1)+" ש'"))return;
+      openSession.start=openSession.openStart;
+      openSession.end=endT;
+      openSession.hrs=hrs;
+      delete openSession.openStart;
+      al('hours','שעות עבודה: '+hrs.toFixed(1)+"ש'",openSession.start+'–'+endT);
+      save();toast('+'+hrs.toFixed(1)+" שעות נשמרו \u2713",3500);renderTab();
+    }},'🛑 סיים יום עבודה ('+elapsed.toFixed(1)+"ש')"));
+  } else {
+    // Show "Start day" button + manual log
+    qhCard.appendChild(el('button',{style:{width:'100%',background:'var(--sage)',color:'#fff',border:'none',borderRadius:'10px',padding:'14px',fontSize:'15px',fontWeight:700,fontFamily:'inherit',cursor:'pointer',boxShadow:'0 2px 8px rgba(106,154,90,.25)',marginBottom:'8px'},onclick:()=>{
+      const startT=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+      if(!DB.hoursLog)DB.hoursLog=[];
+      DB.hoursLog.push({id:'h'+Date.now(),uid:ME.id,date:today,openStart:startT,start:'',end:'',hrs:0,note:''});
+      save();toast('🟢 יום עבודה התחיל ב-'+startT,3000);renderTab();
+    }},'▶️ התחל יום עבודה'));
+    const linkRow=el('div',{style:{textAlign:'center',fontSize:'11px',color:'var(--clay)',marginTop:'4px'}});
+    linkRow.appendChild(document.createTextNode('או '));
+    const link=el('span',{style:{textDecoration:'underline',cursor:'pointer',color:'var(--earth)',fontWeight:600},onclick:()=>{TAB='team';renderTab();}},'הוסף רישום ידני');
+    linkRow.appendChild(link);
+    qhCard.appendChild(linkRow);
+  }
+  main.appendChild(qhCard);
+
+  // ============ HIGH PRIORITY TASKS TODAY ============
+  // Build list of tasks for today
+  const todayTasks=[];
+  // Recurring tasks
+  at().forEach(t=>{
+    if(t.done)return; // skip completed once-off
+    if(t.rec==='daily'){
+      todayTasks.push({...t,_done:!!todayComps[t.id],_doneBy:todayComps[t.id]});
+    } else if(t.rec==='weekly'){
+      // Show on the day the task was usually done or all week if never done
+      todayTasks.push({...t,_done:!!todayComps[t.id],_doneBy:todayComps[t.id]});
+    } else if(!t.rec){
+      // Once-off task: show if not done
+      if(!t.done){
+        const due=t.due;
+        const isOverdue=due&&due<today;
+        const isToday=due===today;
+        const isUpcoming=due&&due<=tdk(); // due today or earlier
+        todayTasks.push({...t,_done:false,_overdue:isOverdue,_today:isToday});
+      }
+    }
+  });
+
+  // Sort: undone first, then high priority, then overdue first
+  const sortedTasks=todayTasks.sort((a,b)=>{
+    if(a._done!==b._done)return a._done?1:-1;
+    if(a._overdue!==b._overdue)return a._overdue?-1:1;
+    const priOrder={high:0,medium:1,low:2};
+    return (priOrder[a.pri]||1)-(priOrder[b.pri]||1);
+  });
+
+  const highPriUndone=sortedTasks.filter(t=>!t._done&&t.pri==='high').slice(0,5);
+  const totalUndone=sortedTasks.filter(t=>!t._done).length;
+  const totalDone=sortedTasks.filter(t=>t._done).length;
+
+  const tasksCard=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'14px',marginBottom:'14px',border:'1px solid var(--mist)',boxShadow:'0 2px 8px rgba(26,18,5,.06)'}});
+  tasksCard.appendChild(el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}},[
+    el('div',{style:{display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{style:{fontSize:'18px'}},'🔥'),
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px'}},'משימות חשובות היום'),
+    ]),
+    el('div',{style:{fontSize:'11px',color:'var(--clay)',background:'var(--mist)',padding:'2px 8px',borderRadius:'10px'}},totalDone+'/'+(totalDone+totalUndone)),
+  ]));
+
+  if(highPriUndone.length===0){
+    if(totalDone>0&&totalUndone===0){
+      tasksCard.appendChild(el('div',{style:{textAlign:'center',padding:'14px',color:'var(--sage)'}},[
+        el('div',{style:{fontSize:'30px',marginBottom:'4px'}},'🎉'),
+        el('div',{style:{fontSize:'13px',fontWeight:700}},'כל המשימות בוצעו!'),
+        el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px'}},'עבודה מצוינת היום'),
+      ]));
+    } else {
+      tasksCard.appendChild(el('div',{style:{textAlign:'center',padding:'14px',color:'var(--clay)',fontSize:'12px'}},'אין משימות בעדיפות גבוהה ממתינות'));
+    }
+  } else {
+    highPriUndone.forEach(t=>{
+      const u=t.uid?gu(t.uid):null;
+      const row=el('div',{style:{display:'flex',gap:'10px',alignItems:'center',padding:'10px 4px',borderBottom:'1px solid var(--mist)',cursor:'pointer'},onclick:()=>{
+        // Quick complete
+        if(!DB.comps[today])DB.comps[today]={};
+        DB.comps[today][t.id]=ME.id;
+        al('done','בוצע: '+t.title);
+        save();toast('+'+(PRI[t.pri]?.pts||5)+'★ משימה בוצעה!',2500);renderTab();
+      }});
+      row.appendChild(el('div',{style:{width:'28px',height:'28px',borderRadius:'8px',background:PRI[t.pri].c+'20',border:'2px solid '+PRI[t.pri].c,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .2s'}},[
+        el('span',{style:{fontSize:'14px',color:PRI[t.pri].c,fontWeight:900}},'!'),
+      ]));
+      row.appendChild(el('div',{style:{flex:1,minWidth:0}},[
+        el('div',{style:{fontWeight:600,fontSize:'13px',color:'var(--earth)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},t.title),
+        el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'1px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},[
+          el('span',{style:{background:PRI[t.pri].c+'15',color:PRI[t.pri].c,padding:'1px 6px',borderRadius:'6px',fontWeight:700}},'+'+(PRI[t.pri].pts)+'★'),
+          u?el('span',{},u.emoji+' '+u.name):'',
+          t._overdue?el('span',{style:{color:'var(--red)',fontWeight:700}},'⚠️ באיחור'):'',
+        ]),
+      ]));
+      row.appendChild(el('div',{style:{fontSize:'18px',color:'var(--mist)'}},'›'));
+      tasksCard.appendChild(row);
+    });
+    tasksCard.appendChild(el('div',{style:{textAlign:'center',marginTop:'8px'}},[
+      el('button',{style:{background:'none',border:'none',color:'var(--earth)',fontSize:'12px',fontWeight:600,cursor:'pointer',textDecoration:'underline',fontFamily:'inherit'},onclick:()=>{TAB='tasks';renderTab();}},'הצג את כל המשימות ←'),
+    ]));
+  }
+  main.appendChild(tasksCard);
+
+  // ============ ALERTS ROW (compact) ============
+  const alerts=[];
+  // Inventory shortage
+  const shortage=DB.inv.filter(i=>i.qty<i.minQty);
+  if(shortage.length>0){
+    alerts.push({emoji:'📦',label:shortage.length+' פריטי מלאי חסרים',col:'var(--red)',action:()=>{TAB='inv';renderTab();}});
+  }
+  // Urgent maintenance (open one-off tasks in maint area with high priority)
+  const urgentMaint=DB.oT.filter(t=>!t.done&&t.area==='maint'&&t.pri==='high');
+  if(urgentMaint.length>0){
+    alerts.push({emoji:'🔧',label:urgentMaint.length+' תחזוקות דחופות',col:'var(--red)',action:()=>{TAB='maint';renderTab();}});
+  }
+  // Overdue tasks
+  const overdue=DB.oT.filter(t=>!t.done&&t.due&&t.due<today);
+  if(overdue.length>0){
+    alerts.push({emoji:'⏰',label:overdue.length+' משימות באיחור',col:'var(--straw)',action:()=>{TAB='tasks';renderTab();}});
+  }
+  if(alerts.length>0){
+    const alertCard=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'12px',marginBottom:'14px',border:'1px solid var(--mist)'}});
+    alertCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'13px',marginBottom:'8px',display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{style:{fontSize:'16px'}},'⚠️'),el('span',{},'שים לב'),
+    ]));
+    alerts.forEach(a=>{
+      const row=el('div',{style:{display:'flex',alignItems:'center',gap:'10px',padding:'8px 6px',borderRadius:'8px',cursor:'pointer',marginBottom:'3px',background:a.col+'08'},onclick:a.action});
+      row.appendChild(el('span',{style:{fontSize:'20px'}},a.emoji));
+      row.appendChild(el('div',{style:{flex:1,fontSize:'12px',fontWeight:600,color:a.col}},a.label));
+      row.appendChild(el('span',{style:{color:a.col,fontSize:'14px'}},'›'));
+      alertCard.appendChild(row);
+    });
+    main.appendChild(alertCard);
+  }
+
+  // ============ QUICK ACTIONS ============
+  const actionsCard=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'14px',marginBottom:'14px',border:'1px solid var(--mist)',boxShadow:'0 2px 8px rgba(26,18,5,.06)'}});
+  actionsCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'13px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}},[
+    el('span',{style:{fontSize:'16px'}},'⚡'),el('span',{},'גישה מהירה'),
+  ]));
+  const quickGrid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px'}});
+  const quickBtn=(emoji,label,tab)=>{
+    return el('button',{style:{background:'var(--mist)',border:'1px solid rgba(232,216,184,.5)',borderRadius:'12px',padding:'10px 4px',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',fontFamily:'inherit',transition:'all .15s'},onclick:()=>{TAB=tab;renderTab();}},[
+      el('span',{style:{fontSize:'22px'}},emoji),
+      el('span',{style:{fontSize:'10px',color:'var(--earth)',fontWeight:600,textAlign:'center'}},label),
+    ]);
+  };
+  quickGrid.appendChild(quickBtn('📋','משימות','tasks'));
+  quickGrid.appendChild(quickBtn('📦','מלאי','inv'));
+  quickGrid.appendChild(quickBtn('🔧','תחזוקה','maint'));
+  quickGrid.appendChild(quickBtn('🏆','ניקוד','score'));
+  quickGrid.appendChild(quickBtn('👥','צוות','team'));
+  quickGrid.appendChild(quickBtn('🌱','עונות','garden'));
+  quickGrid.appendChild(quickBtn('📔','יומן','jour'));
+  quickGrid.appendChild(quickBtn('📊','סיכום','sum'));
+  actionsCard.appendChild(quickGrid);
+  main.appendChild(actionsCard);
+
+  // ============ TEAM ACTIVITY TODAY (small) ============
+  const teamActive=DB.users.filter(u=>{
+    return Object.values(todayComps).includes(u.id) || (DB.hoursLog||[]).some(h=>h.uid===u.id&&h.date===today);
+  });
+  if(teamActive.length>0){
+    const teamCard=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'12px 14px',marginBottom:'14px',border:'1px solid var(--mist)'}});
+    teamCard.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',fontWeight:600,marginBottom:'8px',display:'flex',alignItems:'center',gap:'5px'}},[
+      el('span',{style:{width:'6px',height:'6px',borderRadius:'50%',background:'var(--sage)'}},''),
+      el('span',{},'פעילים היום ('+teamActive.length+')'),
+    ]));
+    const avatars=el('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}});
+    teamActive.forEach(u=>{
+      const cnt=Object.values(todayComps).filter(uid=>uid===u.id).length;
+      avatars.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'5px',background:'var(--mist)',padding:'4px 10px',borderRadius:'14px',fontSize:'11px',fontWeight:600},title:u.name+': '+cnt+' משימות'},[
+        el('span',{style:{fontSize:'15px'}},u.emoji),
+        el('span',{},u.name),
+        cnt>0?el('span',{style:{background:'var(--sage)',color:'#fff',borderRadius:'8px',padding:'1px 6px',fontSize:'10px',fontWeight:700}},cnt+'✓'):'',
+      ]));
+    });
+    teamCard.appendChild(avatars);
+    main.appendChild(teamCard);
+  }
+
+  // Pulse animation for live indicator
+  if(!document.getElementById('home-pulse-style')){
+    const s=document.createElement('style');
+    s.id='home-pulse-style';
+    s.textContent='@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.2)}}';
+    document.head.appendChild(s);
+  }
 }
 
 function rTasks(main){
