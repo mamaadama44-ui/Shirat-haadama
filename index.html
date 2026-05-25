@@ -324,6 +324,14 @@ function tdk(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth(
 function fd(s){if(!s)return'';return new Date(s+'T00:00:00').toLocaleDateString('he-IL',{day:'numeric',month:'short'});}
 function ch(s,e){const[sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number);return Math.max(0,((eh*60+em)-(sh*60+sm))/60);}
 function gp(uid){let p=0;Object.values(DB.comps).forEach(dc=>{Object.entries(dc).forEach(([tid,by])=>{if(by!==uid)return;const t=at().find(t=>t.id===tid);if(t)p+=PRI[t.pri]?.pts||5;});});Object.values(DB.bonus||{}).flat().filter(b=>b.uid===uid).forEach(b=>p+=b.pts);p+=at().filter(t=>t.createdBy===uid).length*3;return p;}
+// Normalize DB.bonus to an array - Firebase sometimes stores arrays as objects with numeric keys
+function bonusArr(){
+  const b=DB.bonus;
+  if(!b)return[];
+  if(Array.isArray(b))return b;
+  // It's an object (could be {0:..., 1:...} or {b123:...})
+  return Object.values(b).flat().filter(x=>x&&typeof x==='object');
+}
 // Monthly points for a user, broken down by source
 function gpm(uid,year,month){
   const pfx=year+'-'+String(month+1).padStart(2,'0')+'-';
@@ -339,7 +347,7 @@ function gpm(uid,year,month){
       breakdown[pri]=(breakdown[pri]||0)+pts;
     });
   });
-  const bonusList=(DB.bonus||[]).filter(b=>b.uid===uid&&b.date&&b.date.startsWith(pfx));
+  const bonusList=bonusArr().filter(b=>b.uid===uid&&b.date&&b.date.startsWith(pfx));
   const bonusPts=bonusList.reduce((s,b)=>s+(b.pts||0),0);
   return {total:tasksPts+bonusPts,tasksPts,tasksCount,bonusPts,bonusList,breakdown};
 }
@@ -1791,7 +1799,7 @@ function rScore(main){
       events.push({date:dk,type:'task',uid,user:u,title:t?.title||'(נמחקה)',pri:t?.pri||'medium',pts:PRI[t?.pri]?.pts||5,ts:dk});
     });
   });
-  (DB.bonus||[]).filter(b=>b.date&&b.date.startsWith(mPrefix)).forEach(b=>{
+  (bonusArr()).filter(b=>b.date&&b.date.startsWith(mPrefix)).forEach(b=>{
     const u=gu(b.uid);
     const byUser=gu(b.by);
     events.push({date:b.date,type:'bonus',uid:b.uid,user:u,title:b.note||'בונוס',pts:b.pts,by:byUser,bid:b.id,ts:b.date+'-'+b.id});
@@ -1821,7 +1829,7 @@ function rScore(main){
           ]),
           el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:800,color:ev.type==='bonus'?'var(--red)':PRI[ev.pri]?.c||'var(--earth)',whiteSpace:'nowrap'}},'+'+ev.pts+'★'),
           // Manager can remove bonus
-          isManager&&ev.type==='bonus'?el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'13px',padding:'2px'},onclick:e=>{e.stopPropagation();if(confirm('להסיר את הבונוס "'+ev.title+'" ('+ev.pts+'★)?')){DB.bonus=(DB.bonus||[]).filter(b=>b.id!==ev.bid);save();toast('הבונוס הוסר');renderTab();}}},'🗑'):'',
+          isManager&&ev.type==='bonus'?el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'13px',padding:'2px'},onclick:e=>{e.stopPropagation();if(confirm('להסיר את הבונוס "'+ev.title+'" ('+ev.pts+'★)?')){DB.bonus=bonusArr().filter(b=>b.id!==ev.bid);save();toast('הבונוס הוסר');renderTab();}}},'🗑'):'',
         ]);
         logCard.appendChild(item);
       });
@@ -1904,7 +1912,7 @@ function rScore(main){
       if(!bUser){toast('בחר עובד');return;}
       if(!bPts){toast('הכנס מספר נקודות');return;}
       if(!bnInp.value.trim()){toast('הוסף סיבה');return;}
-      if(!DB.bonus)DB.bonus=[];
+      if(!DB.bonus||!Array.isArray(DB.bonus))DB.bonus=bonusArr();
       DB.bonus.push({id:'b'+Date.now(),uid:bUser,pts:bPts,note:bnInp.value.trim(),date:today,by:ME.id});
       save();toast((bPts>0?'+':'')+bPts+'★ ניתנו ✓');renderTab();
     },{width:'100%',marginTop:'10px',color:'var(--earth)'}));
