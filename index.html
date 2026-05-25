@@ -238,6 +238,7 @@ const DEFAULT_DATA = {
   maintLog:[],
   emailLog:{},
   gardenLog:{},
+  monthlyResetSeen:{},
   projects:[
     {id:'p1',title:'🌱 סדנאות קיץ',color:'#6a9a5a',status:'active',desc:'סדנאות למשפחות',taskIds:['o1','o2']},
     {id:'p2',title:'📢 קהילה ברשתות',color:'#6a4a8e',status:'active',desc:'הגדלת עוקבים',taskIds:['r15','r14']},
@@ -311,6 +312,7 @@ onSnapshot(DOC, (snap)=>{
     DB.emailLog = newDB.emailLog||{};
     DB.gardenLog = newDB.gardenLog||{};
     DB.suppliers = newDB.suppliers||[];
+    DB.monthlyResetSeen = newDB.monthlyResetSeen||{};
     // Refresh current tab silently
     if(document.getElementById('app-main')) renderTab();
   }
@@ -322,6 +324,38 @@ function tdk(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth(
 function fd(s){if(!s)return'';return new Date(s+'T00:00:00').toLocaleDateString('he-IL',{day:'numeric',month:'short'});}
 function ch(s,e){const[sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number);return Math.max(0,((eh*60+em)-(sh*60+sm))/60);}
 function gp(uid){let p=0;Object.values(DB.comps).forEach(dc=>{Object.entries(dc).forEach(([tid,by])=>{if(by!==uid)return;const t=at().find(t=>t.id===tid);if(t)p+=PRI[t.pri]?.pts||5;});});Object.values(DB.bonus||{}).flat().filter(b=>b.uid===uid).forEach(b=>p+=b.pts);p+=at().filter(t=>t.createdBy===uid).length*3;return p;}
+// Monthly points for a user, broken down by source
+function gpm(uid,year,month){
+  const pfx=year+'-'+String(month+1).padStart(2,'0')+'-';
+  let tasksPts=0,tasksCount=0;
+  const breakdown={high:0,medium:0,low:0,unknown:0};
+  Object.keys(DB.comps||{}).filter(k=>k.startsWith(pfx)).forEach(dk=>{
+    Object.entries(DB.comps[dk]||{}).forEach(([tid,by])=>{
+      if(by!==uid)return;
+      const t=at().find(x=>x.id===tid);
+      const pri=t?.pri||'medium';
+      const pts=PRI[pri]?.pts||5;
+      tasksPts+=pts;tasksCount++;
+      breakdown[pri]=(breakdown[pri]||0)+pts;
+    });
+  });
+  const bonusList=(DB.bonus||[]).filter(b=>b.uid===uid&&b.date&&b.date.startsWith(pfx));
+  const bonusPts=bonusList.reduce((s,b)=>s+(b.pts||0),0);
+  return {total:tasksPts+bonusPts,tasksPts,tasksCount,bonusPts,bonusList,breakdown};
+}
+// Get a list of {dateKey, taskTitle, taskArea, pri, pts} for monthly tasks done by user
+function gpmTasks(uid,year,month){
+  const pfx=year+'-'+String(month+1).padStart(2,'0')+'-';
+  const out=[];
+  Object.keys(DB.comps||{}).filter(k=>k.startsWith(pfx)).sort().reverse().forEach(dk=>{
+    Object.entries(DB.comps[dk]||{}).forEach(([tid,by])=>{
+      if(by!==uid)return;
+      const t=at().find(x=>x.id===tid);
+      out.push({dateKey:dk,tid,title:t?.title||'(נמחקה)',area:t?.area||'',pri:t?.pri||'medium',pts:PRI[t?.pri]?.pts||5});
+    });
+  });
+  return out;
+}
 function al(type,text,detail='',area=''){if(!DB.actLog)DB.actLog=[];DB.actLog.push({id:'l'+Date.now(),type,ts:Date.now(),userId:ME.id,userName:ME.name,text,detail,area});save();}
 
 // DOM helpers
@@ -405,8 +439,12 @@ function renderApp(){
   const hdr=el('div',{className:'app-hdr'},[
     el('div',{className:'hdr-top'},[
       el('div',{},[el('div',{className:'brand'},'🌾 שירת האדמה'),el('div',{id:'hdate',style:{color:'rgba(245,237,216,.45)',fontSize:'10px',marginTop:'1px'}},'')]),
-      el('div',{className:'u-pill',onclick:()=>{if(confirm(`${ME.emoji} ${ME.name}\nנקודות: ${gp(ME.id)}\u2605\n\nלצאת?`)){ME=null;localStorage.removeItem('sheirat_creds');renderLogin();}}},[
-        el('span',{style:{fontSize:'17px'}},ME.emoji),el('span',{className:'nm'},ME.name),el('span',{className:'pts',id:'hpts'},gp(ME.id)+'\u2605')
+      el('div',{className:'u-pill',onclick:()=>{const mpts=gpm(ME.id,new Date().getFullYear(),new Date().getMonth()).total;if(confirm(`${ME.emoji} ${ME.name}\nהחודש: ${mpts}\u2605\nכולל: ${gp(ME.id)}\u2605\n\nלצאת?`)){ME=null;localStorage.removeItem('sheirat_creds');renderLogin();}}},[
+        el('span',{style:{fontSize:'17px'}},ME.emoji),el('span',{className:'nm'},ME.name),
+        el('span',{className:'pts',id:'hpts',style:{display:'flex',flexDirection:'column',alignItems:'center',lineHeight:'1',gap:'1px'}},[
+          el('span',{style:{fontSize:'13px',fontWeight:800,color:'var(--gold)'}},gpm(ME.id,new Date().getFullYear(),new Date().getMonth()).total+'\u2605'),
+          el('span',{style:{fontSize:'8px',opacity:.65,fontWeight:600}},'סה"כ '+gp(ME.id))
+        ])
       ])
     ]),
     el('div',{className:'prog-w'},[el('div',{className:'prog-bg'},[pf])]),tw
@@ -428,6 +466,8 @@ function renderApp(){
   setTimeout(()=>checkAndSendMonthlySummary(),8000);
   // Check garden reminder
   setTimeout(()=>checkAndSendGardenEmail(),12000);
+  // Monthly reset notice for managers
+  setTimeout(()=>checkMonthlyResetNotice(),1500);
 }
 
 function renderTab(mainEl,pfEl){
@@ -453,7 +493,13 @@ function renderTab(mainEl,pfEl){
     pf.style.width=Math.round(Math.min(done/Math.max(todayTasks,1)*100,100))+'%';
   }
   const hpts=document.getElementById('hpts');
-  if(hpts)hpts.textContent=gp(ME.id)+'\u2605';
+  if(hpts){
+    const now=new Date();
+    const mpts=gpm(ME.id,now.getFullYear(),now.getMonth()).total;
+    hpts.innerHTML='';
+    hpts.appendChild(el('span',{style:{fontSize:'13px',fontWeight:800,color:'var(--gold)'}},mpts+'\u2605'));
+    hpts.appendChild(el('span',{style:{fontSize:'8px',opacity:.65,fontWeight:600}},'סה"כ '+gp(ME.id)));
+  }
 }
 
 function toggle(tid){
@@ -1559,105 +1605,400 @@ function rHours(main){
 }
 
 function rScore(main){
-  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'🏆 לוח ניקוד'));
-
   const today=tdk();
+  const now=new Date();
+  const isCurrentMonth=(HY===now.getFullYear()&&HM===now.getMonth());
+  const isPastMonth=(HY<now.getFullYear()||(HY===now.getFullYear()&&HM<now.getMonth()));
   const mPrefix=`${HY}-${String(HM+1).padStart(2,'0')}`;
+  const isManager=ME.role==='\u05de\u05e0\u05d4\u05dc';
 
-  // Month nav
-  const nav=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}});
-  nav.appendChild(el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer'},onclick:()=>{HM--;if(HM<0){HM=11;HY--;}renderTab();}},'◀'));
-  nav.appendChild(el('span',{style:{fontWeight:600,fontSize:'13px'}},MONTHS[HM]+' '+HY));
-  nav.appendChild(el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer'},onclick:()=>{HM++;if(HM>11){HM=0;HY++;}renderTab();}},'▶'));
+  // ============ HEADER ============
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'17px',fontWeight:900,marginBottom:'4px',display:'flex',alignItems:'center',gap:'8px'}},[
+    el('span',{style:{fontSize:'22px'}},'🏆'),
+    el('span',{},'לוח ניקוד'),
+  ]));
+  main.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'12px'}},'כל חודש מתאפס — אבל הארכיון נשמר 📚'));
+
+  // ============ MONTH NAV ============
+  const nav=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',background:'var(--mist)',borderRadius:'10px',padding:'4px 8px'}});
+  nav.appendChild(el('button',{style:{background:'none',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer',fontSize:'14px'},onclick:()=>{HM--;if(HM<0){HM=11;HY--;}renderTab();}},'◀'));
+  const monthLabel=el('div',{style:{textAlign:'center',flex:1}},[
+    el('div',{style:{fontWeight:700,fontSize:'14px',color:'var(--earth)'}},MONTHS[HM]+' '+HY),
+    el('div',{style:{fontSize:'10px',color:'var(--clay)'}},isCurrentMonth?'(החודש הנוכחי)':isPastMonth?'(ארכיון)':'(עתידי)'),
+  ]);
+  nav.appendChild(monthLabel);
+  nav.appendChild(el('button',{style:{background:'none',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer',fontSize:'14px'},onclick:()=>{HM++;if(HM>11){HM=0;HY++;}renderTab();}},'▶'));
   main.appendChild(nav);
 
-  // Calculate monthly scores from comps
-  const monthKeys=Object.keys(DB.comps||{}).filter(k=>k.startsWith(mPrefix));
-  const monthPts={};
-  monthKeys.forEach(dk=>{
-    const dayComps=DB.comps[dk]||{};
-    Object.entries(dayComps).forEach(([tid,uid])=>{
-      const t=[...DB.rT,...DB.oT].find(x=>x.id===tid);
-      const pts=PRI[t?.pri]?.pts||5;
-      if(!monthPts[uid])monthPts[uid]=0;
-      monthPts[uid]+=pts;
-    });
-  });
-  // Add bonus
-  (DB.bonus||[]).filter(b=>b.date&&b.date.startsWith(mPrefix)).forEach(b=>{
-    if(!monthPts[b.uid])monthPts[b.uid]=0;
-    monthPts[b.uid]+=b.pts;
-  });
+  // ============ CALCULATE RANKINGS ============
+  const rankedRaw=DB.users.map(u=>{
+    const stats=gpm(u.id,HY,HM);
+    return {u,...stats};
+  }).sort((a,b)=>b.total-a.total);
 
-  const ranked=DB.users.map(u=>({u,pts:monthPts[u.id]||0})).sort((a,b)=>b.pts-a.pts);
+  // Hide users with 0 in archive months unless they had activity? Keep all for fairness.
+  const ranked=rankedRaw;
+  const maxPts=Math.max(...ranked.map(r=>r.total),1);
   const medals=['🥇','🥈','🥉'];
+  const medalColors=['#E8B84B','#C0C0C0','#CD7F32'];
 
-  // Leaderboard
-  main.appendChild(card([
-    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'10px'}},MONTHS[HM]+' — לוח המובילים'),
-    ...ranked.map(({u,pts},i)=>el('div',{style:{display:'flex',alignItems:'center',gap:'10px',padding:'8px 0',borderBottom:'1px solid var(--mist)'}},[
-      el('span',{style:{fontSize:'18px',width:'24px'}},medals[i]||String(i+1)),
-      el('span',{style:{fontSize:'22px'}},u.emoji),
-      el('div',{style:{flex:1}},[
-        el('div',{style:{fontWeight:600,fontSize:'13px'}},u.name),
-        el('div',{style:{fontSize:'10px',color:'var(--clay)'}},u.role),
+  // ============ WINNER SPOTLIGHT (only if past month + has winner) ============
+  if(isPastMonth && ranked[0] && ranked[0].total>0){
+    const winner=ranked[0];
+    const spotlight=el('div',{style:{background:'linear-gradient(135deg,#3d2510,#5a3818,#3d2510)',borderRadius:'14px',padding:'16px',marginBottom:'12px',border:'2px solid var(--gold)',boxShadow:'0 4px 20px rgba(232,184,75,.25)',position:'relative',overflow:'hidden'}});
+    // Decorative background pattern
+    spotlight.appendChild(el('div',{style:{position:'absolute',top:'-10px',right:'-10px',fontSize:'90px',opacity:.07,pointerEvents:'none'}},'🏆'));
+    spotlight.appendChild(el('div',{style:{fontSize:'10px',color:'var(--gold)',fontWeight:700,letterSpacing:'2px',textAlign:'center',marginBottom:'8px',opacity:.85}},'★ אלוף החודש ★'));
+    spotlight.appendChild(el('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',gap:'14px'}},[
+      el('div',{style:{fontSize:'54px',filter:'drop-shadow(0 2px 8px rgba(232,184,75,.6))'}},winner.u.emoji),
+      el('div',{style:{textAlign:'center'}},[
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,color:'var(--gold)'}},winner.u.name),
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'30px',fontWeight:900,color:'#fff',marginTop:'2px'}},winner.total+'★'),
+        el('div',{style:{fontSize:'11px',color:'rgba(232,216,184,.7)',marginTop:'3px'}},winner.tasksCount+' משימות + '+winner.bonusPts+' בונוס'),
       ]),
-      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'20px',fontWeight:900,color:i===0?'var(--straw)':i===1?'#aaa':'#b87333'}},pts+'★'),
-    ]))
+    ]));
+    main.appendChild(spotlight);
+  }
+
+  // ============ LEADERBOARD ============
+  const lbCard=el('div',{className:'card',style:{padding:'14px'}});
+  lbCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'6px'}},[
+    el('span',{},'🏅'),el('span',{},'לוח המובילים'),
+    el('span',{style:{fontSize:'10px',color:'var(--clay)',fontWeight:500,marginRight:'auto'}},isCurrentMonth?'בזמן אמת':'(סגור)')
   ]));
 
-  // Monthly history chart (last 6 months)
-  const histCard=card([el('div',{className:'card-t'},'📊 היסטוריה חודשית')]);
-  const now2=new Date();
+  if(ranked.every(r=>r.total===0)){
+    lbCard.appendChild(el('div',{style:{textAlign:'center',color:'var(--clay)',padding:'20px 10px',fontSize:'12px'}},isCurrentMonth?'עוד לא נצברו כוכבים החודש 🌱':'לא היו פעולות בחודש זה'));
+  } else {
+    ranked.forEach((r,i)=>{
+      const pct=Math.round(r.total/maxPts*100);
+      const isYou=r.u.id===ME.id;
+      const row=el('div',{style:{padding:'10px 4px',borderBottom:i<ranked.length-1?'1px solid var(--mist)':'none',cursor:'pointer',borderRadius:'6px',transition:'background .15s'},onmouseover:e=>{e.currentTarget.style.background='rgba(232,216,184,.15)';},onmouseout:e=>{e.currentTarget.style.background='transparent';},onclick:()=>showUserMonthDetail(r.u.id,HY,HM)});
+      row.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'10px'}},[
+        el('div',{style:{width:'28px',textAlign:'center',fontSize:i<3?'20px':'14px',fontWeight:700,color:i<3?medalColors[i]:'var(--clay)'}},medals[i]||'#'+(i+1)),
+        el('div',{style:{width:'40px',height:'40px',borderRadius:'50%',background:r.u.color+'25',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'22px',flexShrink:0,border:isYou?'2px solid var(--sage)':'2px solid transparent'}},r.u.emoji),
+        el('div',{style:{flex:1,minWidth:0}},[
+          el('div',{style:{fontWeight:700,fontSize:'13px',display:'flex',alignItems:'center',gap:'5px'}},[
+            el('span',{},r.u.name),
+            isYou?el('span',{style:{fontSize:'9px',background:'var(--sage)',color:'#fff',padding:'1px 5px',borderRadius:'8px',fontWeight:700}},'אתה'):'',
+          ]),
+          el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'2px'}},r.tasksCount+' משימות'+(r.bonusPts>0?' · +'+r.bonusPts+' בונוס':'')),
+        ]),
+        el('div',{style:{textAlign:'left',minWidth:'60px'}},[
+          el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,color:i===0?'var(--gold)':i===1?'#aaa':i===2?'#b87333':'var(--earth)',lineHeight:'1'}},r.total+'★'),
+        ]),
+      ]));
+      // Progress bar
+      const bar=el('div',{style:{height:'4px',background:'var(--mist)',borderRadius:'3px',marginTop:'7px',overflow:'hidden'}});
+      bar.appendChild(el('div',{style:{height:'100%',width:pct+'%',background:i===0?'linear-gradient(90deg,var(--gold),#f5cf6e)':i===1?'linear-gradient(90deg,#aaa,#ccc)':i===2?'linear-gradient(90deg,#b87333,#d4894a)':'linear-gradient(90deg,'+r.u.color+','+r.u.color+'aa)',transition:'width .4s'}}));
+      row.appendChild(bar);
+      lbCard.appendChild(row);
+    });
+    lbCard.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)',textAlign:'center',marginTop:'8px',fontStyle:'italic'}},'💡 לחץ על שורה לפירוט מלא'));
+  }
+  main.appendChild(lbCard);
+
+  // ============ MY BREAKDOWN (current user this month) ============
+  if(isCurrentMonth){
+    const my=gpm(ME.id,HY,HM);
+    if(my.total>0||my.tasksCount>0){
+      const myCard=el('div',{className:'card',style:{padding:'14px',background:'linear-gradient(135deg,rgba(106,154,90,.08),rgba(232,184,75,.08))'}});
+      myCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}},[
+        el('span',{},ME.emoji),el('span',{},'הפירוט שלך החודש')
+      ]));
+      const grid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'8px',marginBottom:'10px'}});
+      const stat=(label,val,col,emoji)=>el('div',{style:{background:'var(--white)',borderRadius:'8px',padding:'8px 6px',textAlign:'center',border:'1px solid var(--mist)'}},[
+        el('div',{style:{fontSize:'16px',marginBottom:'2px'}},emoji),
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'18px',fontWeight:900,color:col,lineHeight:'1'}},val),
+        el('div',{style:{fontSize:'9px',color:'var(--clay)',marginTop:'2px'}},label),
+      ]);
+      grid.appendChild(stat('סה"כ',my.total+'★','var(--gold)','🌟'));
+      grid.appendChild(stat('משימות',my.tasksCount,'var(--sage)','✅'));
+      grid.appendChild(stat('בונוסים',my.bonusPts+'★','var(--red)','🎁'));
+      myCard.appendChild(grid);
+      // Priority breakdown
+      const totalPri=my.breakdown.high+my.breakdown.medium+my.breakdown.low;
+      if(totalPri>0){
+        const priBar=el('div',{style:{display:'flex',height:'10px',borderRadius:'5px',overflow:'hidden',marginBottom:'6px'}});
+        if(my.breakdown.high>0)priBar.appendChild(el('div',{style:{width:(my.breakdown.high/totalPri*100)+'%',background:PRI.high.c}}));
+        if(my.breakdown.medium>0)priBar.appendChild(el('div',{style:{width:(my.breakdown.medium/totalPri*100)+'%',background:PRI.medium.c}}));
+        if(my.breakdown.low>0)priBar.appendChild(el('div',{style:{width:(my.breakdown.low/totalPri*100)+'%',background:PRI.low.c}}));
+        myCard.appendChild(priBar);
+        myCard.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'var(--clay)'}},[
+          el('span',{style:{color:PRI.high.c}},'● גבוהה: '+my.breakdown.high+'★'),
+          el('span',{style:{color:PRI.medium.c}},'● בינונית: '+my.breakdown.medium+'★'),
+          el('span',{style:{color:PRI.low.c}},'● נמוכה: '+my.breakdown.low+'★'),
+        ]));
+      }
+      main.appendChild(myCard);
+    }
+  }
+
+  // ============ MONTHLY HISTORY CHART (6 months trend) ============
+  const histCard=el('div',{className:'card',style:{padding:'14px'}});
+  histCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}},[
+    el('span',{},'📊'),el('span',{},'מגמה חצי-שנתית'),
+    el('span',{style:{fontSize:'10px',color:'var(--clay)',fontWeight:500,marginRight:'auto'}},'6 חודשים אחרונים'),
+  ]));
   const months6=[];
   for(let m=5;m>=0;m--){
-    const d=new Date(now2.getFullYear(),now2.getMonth()-m,1);
+    const d=new Date(now.getFullYear(),now.getMonth()-m,1);
     months6.push({y:d.getFullYear(),m:d.getMonth(),label:MONTHS[d.getMonth()].slice(0,3)});
   }
+  // Find global max for proper scaling
+  let globalMax=10;
   DB.users.forEach(u=>{
-    const row=el('div',{style:{marginBottom:'8px'}});
-    row.appendChild(el('div',{style:{fontSize:'12px',fontWeight:600,marginBottom:'3px'}},u.emoji+' '+u.name));
-    const bars=el('div',{style:{display:'flex',gap:'3px',alignItems:'flex-end',height:'40px'}});
+    months6.forEach(({y,m})=>{
+      const pts=gpm(u.id,y,m).total;
+      if(pts>globalMax)globalMax=pts;
+    });
+  });
+  DB.users.forEach(u=>{
+    const row=el('div',{style:{marginBottom:'10px'}});
+    row.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'11px',fontWeight:600,marginBottom:'4px'}},[
+      el('span',{},u.emoji+' '+u.name),
+      el('span',{style:{color:'var(--clay)',fontWeight:500}},months6.reduce((s,{y,m})=>s+gpm(u.id,y,m).total,0)+'★ סה"כ'),
+    ]));
+    const bars=el('div',{style:{display:'flex',gap:'4px',alignItems:'flex-end',height:'48px',background:'var(--mist)',borderRadius:'6px',padding:'4px'}});
     months6.forEach(({y,m,label})=>{
-      const pfx=y+'-'+String(m+1).padStart(2,'0')+'-';
-      const mKeys=Object.keys(DB.comps||{}).filter(k=>k.startsWith(pfx));
-      let pts=0;
-      mKeys.forEach(dk=>{Object.entries(DB.comps[dk]||{}).forEach(([tid,uid])=>{if(uid===u.id){const t=[...DB.rT,...DB.oT].find(x=>x.id===tid);pts+=PRI[t?.pri]?.pts||5;}});});
-      (DB.bonus||[]).filter(b=>b.uid===u.id&&b.date&&b.date.startsWith(pfx)).forEach(b=>pts+=b.pts);
-      const maxPts=200;
-      const h=Math.max(4,Math.round(pts/maxPts*36));
-      const barCol=el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',flex:1}});
-      barCol.appendChild(el('div',{style:{width:'100%',height:h+'px',background:u.color,borderRadius:'3px 3px 0 0',opacity:.8}},''));
-      barCol.appendChild(el('div',{style:{fontSize:'9px',color:'var(--clay)',marginTop:'2px'}},label));
+      const pts=gpm(u.id,y,m).total;
+      const h=Math.max(2,Math.round(pts/globalMax*40));
+      const isCurr=(y===now.getFullYear()&&m===now.getMonth());
+      const barCol=el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',flex:1,justifyContent:'flex-end',height:'100%',cursor:'pointer'},onclick:()=>{HM=m;HY=y;renderTab();}});
+      const bar=el('div',{style:{width:'100%',height:h+'px',background:u.color,borderRadius:'3px 3px 0 0',opacity:isCurr?1:.7,position:'relative',transition:'opacity .2s'}});
+      if(pts>0)bar.appendChild(el('div',{style:{position:'absolute',top:'-13px',left:'50%',transform:'translateX(-50%)',fontSize:'9px',fontWeight:700,color:'var(--earth)',whiteSpace:'nowrap'}},pts));
+      barCol.appendChild(bar);
+      barCol.appendChild(el('div',{style:{fontSize:'9px',color:isCurr?'var(--earth)':'var(--clay)',marginTop:'3px',fontWeight:isCurr?700:500}},label));
       bars.appendChild(barCol);
     });
     row.appendChild(bars);
     histCard.appendChild(row);
   });
+  histCard.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)',textAlign:'center',marginTop:'6px',fontStyle:'italic'}},'💡 לחץ עמודה לקפיצה לחודש'));
   main.appendChild(histCard);
 
-  // Bonus points (manager only)
-  if(ME.role==='\u05de\u05e0\u05d4\u05dc'){
-    const bc=card([el('div',{className:'card-t'},'⭐ בונוס נקודות')]);
-    let bUser=DB.users[0]?.id||'';let bPts=10;let bNote='';
+  // ============ ACTIVITY LOG FOR THIS MONTH ============
+  const logCard=el('div',{className:'card',style:{padding:'14px'}});
+  logCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}},[
+    el('span',{},'📜'),el('span',{},'יומן פעולות החודש')
+  ]));
+  // Combine all task completions + bonuses for this month
+  const events=[];
+  Object.keys(DB.comps||{}).filter(k=>k.startsWith(mPrefix)).forEach(dk=>{
+    Object.entries(DB.comps[dk]||{}).forEach(([tid,uid])=>{
+      const t=at().find(x=>x.id===tid);
+      const u=gu(uid);
+      events.push({date:dk,type:'task',uid,user:u,title:t?.title||'(נמחקה)',pri:t?.pri||'medium',pts:PRI[t?.pri]?.pts||5,ts:dk});
+    });
+  });
+  (DB.bonus||[]).filter(b=>b.date&&b.date.startsWith(mPrefix)).forEach(b=>{
+    const u=gu(b.uid);
+    const byUser=gu(b.by);
+    events.push({date:b.date,type:'bonus',uid:b.uid,user:u,title:b.note||'בונוס',pts:b.pts,by:byUser,bid:b.id,ts:b.date+'-'+b.id});
+  });
+  events.sort((a,b)=>b.ts.localeCompare(a.ts));
+
+  if(events.length===0){
+    logCard.appendChild(el('div',{style:{textAlign:'center',color:'var(--clay)',padding:'15px',fontSize:'12px'}},'אין פעולות בחודש זה'));
+  } else {
+    // Show top 10, with "show more" toggle
+    const initialShow=10;
+    const renderLog=(showAll)=>{
+      logCard.querySelectorAll('.log-item, .log-toggle').forEach(n=>n.remove());
+      const toShow=showAll?events:events.slice(0,initialShow);
+      toShow.forEach(ev=>{
+        const item=el('div',{className:'log-item',style:{display:'flex',alignItems:'center',gap:'8px',padding:'7px 4px',borderBottom:'1px solid var(--mist)',fontSize:'12px'}},[
+          el('div',{style:{width:'28px',height:'28px',borderRadius:'50%',background:(ev.user?.color||'#999')+'25',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'15px',flexShrink:0}},ev.user?.emoji||'❓'),
+          el('div',{style:{flex:1,minWidth:0}},[
+            el('div',{style:{fontSize:'12px',fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},[
+              ev.type==='bonus'?el('span',{style:{color:'var(--red)',fontSize:'10px',background:'rgba(200,90,58,.12)',padding:'1px 5px',borderRadius:'6px',marginLeft:'4px',fontWeight:700}},'🎁 בונוס'):'',
+              el('span',{},ev.title),
+            ]),
+            el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'1px'}},[
+              el('span',{},(ev.user?.name||'?')+' · '+fd(ev.date)),
+              ev.type==='bonus'&&ev.by?el('span',{},' · מעניק: '+ev.by.name):'',
+            ]),
+          ]),
+          el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:800,color:ev.type==='bonus'?'var(--red)':PRI[ev.pri]?.c||'var(--earth)',whiteSpace:'nowrap'}},'+'+ev.pts+'★'),
+          // Manager can remove bonus
+          isManager&&ev.type==='bonus'?el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'13px',padding:'2px'},onclick:e=>{e.stopPropagation();if(confirm('להסיר את הבונוס "'+ev.title+'" ('+ev.pts+'★)?')){DB.bonus=(DB.bonus||[]).filter(b=>b.id!==ev.bid);save();toast('הבונוס הוסר');renderTab();}}},'🗑'):'',
+        ]);
+        logCard.appendChild(item);
+      });
+      if(events.length>initialShow){
+        const tg=el('div',{className:'log-toggle',style:{textAlign:'center',marginTop:'8px'}},[
+          el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'8px',padding:'5px 14px',fontSize:'11px',cursor:'pointer',color:'var(--earth)',fontWeight:600},onclick:()=>renderLog(!showAll)},showAll?'הצג פחות ▲':'הצג עוד ('+(events.length-initialShow)+') ▼')
+        ]);
+        logCard.appendChild(tg);
+      }
+    };
+    renderLog(false);
+  }
+  main.appendChild(logCard);
+
+  // ============ ARCHIVE - PAST MONTHS WINNERS ============
+  const archiveMonths=[];
+  const now2=new Date();
+  for(let i=1;i<=12;i++){
+    const d=new Date(now2.getFullYear(),now2.getMonth()-i,1);
+    const y=d.getFullYear(),m=d.getMonth();
+    // Check if any activity that month
+    const hasActivity=DB.users.some(u=>gpm(u.id,y,m).total>0);
+    if(hasActivity){
+      const winners=DB.users.map(u=>({u,total:gpm(u.id,y,m).total})).sort((a,b)=>b.total-a.total);
+      archiveMonths.push({y,m,winners});
+    }
+  }
+  if(archiveMonths.length>0){
+    const archCard=el('div',{className:'card',style:{padding:'14px'}});
+    archCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{},'📚'),el('span',{},'ארכיון אלופים'),
+      el('span',{style:{fontSize:'10px',color:'var(--clay)',fontWeight:500,marginRight:'auto'}},archiveMonths.length+' חודשים'),
+    ]));
+    archiveMonths.forEach(({y,m,winners})=>{
+      const top3=winners.filter(w=>w.total>0).slice(0,3);
+      if(top3.length===0)return;
+      const ar=el('div',{style:{padding:'8px 4px',borderBottom:'1px solid var(--mist)',cursor:'pointer',borderRadius:'6px',transition:'background .15s'},onmouseover:e=>{e.currentTarget.style.background='rgba(232,216,184,.15)';},onmouseout:e=>{e.currentTarget.style.background='transparent';},onclick:()=>{HM=m;HY=y;renderTab();}});
+      ar.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'10px'}},[
+        el('div',{style:{minWidth:'80px',fontSize:'12px',fontWeight:700,color:'var(--earth)'}},MONTHS[m].slice(0,3)+' '+y),
+        el('div',{style:{flex:1,display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+          top3.map((w,i)=>el('div',{style:{display:'flex',alignItems:'center',gap:'3px',fontSize:'11px'}},[
+            el('span',{style:{fontSize:'14px'}},medals[i]),
+            el('span',{style:{fontSize:'15px'}},w.u.emoji),
+            el('span',{style:{fontWeight:600,color:'var(--earth)'}},w.total+'★'),
+          ]))
+        ),
+        el('span',{style:{color:'var(--clay)',fontSize:'12px'}},'›'),
+      ]));
+      archCard.appendChild(ar);
+    });
+    archCard.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)',textAlign:'center',marginTop:'6px',fontStyle:'italic'}},'💡 לחץ חודש לפרטים מלאים'));
+    main.appendChild(archCard);
+  }
+
+  // ============ BONUS POINTS (manager only, current month only) ============
+  if(isManager && (isCurrentMonth || !isPastMonth)){
+    const bc=el('div',{className:'card',style:{padding:'14px',border:'1px dashed var(--red)',background:'rgba(200,90,58,.04)'}});
+    bc.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'4px',display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{},'⭐'),el('span',{},'הענקת בונוס'),
+      el('span',{style:{fontSize:'10px',color:'var(--clay)',fontWeight:500,marginRight:'auto'}},'מנהלים בלבד'),
+    ]));
+    bc.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'10px'}},'הענק או הורד נקודות עם סיבה'));
+    let bUser=DB.users[0]?.id||'';let bPts=10;
     bc.appendChild(el('div',{className:'flab'},'עובד'));
     bc.appendChild(fsel(DB.users.map(u=>[u.id,u.emoji+' '+u.name]),bUser,v=>{bUser=v;}));
-    bc.appendChild(el('div',{className:'flab'},'נקודות'));
-    const bpInp=finp({type:'number',value:'10',min:'1'});
-    bpInp.oninput=e=>{bPts=parseInt(e.target.value)||10;};
+    bc.appendChild(el('div',{className:'flab'},'נקודות (שלילי = הורדה)'));
+    const bpInp=finp({type:'number',value:'10'});
+    bpInp.oninput=e=>{bPts=parseInt(e.target.value)||0;};
     bc.appendChild(bpInp);
-    bc.appendChild(el('div',{className:'flab'},'סיבה'));
+    // Quick presets
+    const presets=el('div',{style:{display:'flex',gap:'4px',marginTop:'4px',flexWrap:'wrap'}});
+    [-10,-5,5,10,20,50].forEach(p=>{
+      presets.appendChild(el('button',{style:{background:p<0?'rgba(200,90,58,.12)':'rgba(106,154,90,.12)',color:p<0?'var(--red)':'var(--sage)',border:'1px solid '+(p<0?'rgba(200,90,58,.3)':'rgba(106,154,90,.3)'),borderRadius:'6px',padding:'3px 8px',fontSize:'11px',cursor:'pointer',fontWeight:700,fontFamily:'inherit'},onclick:()=>{bpInp.value=p;bPts=p;}},(p>0?'+':'')+p+'★'));
+    });
+    bc.appendChild(presets);
+    bc.appendChild(el('div',{className:'flab',style:{marginTop:'8px'}},'סיבה'));
     const bnInp=finp({placeholder:'למה הבונוס?'});
-    bnInp.oninput=e=>{bNote=e.target.value;};
     bc.appendChild(bnInp);
     bc.appendChild(btn('הענק נקודות בונוס','var(--straw)',()=>{
       if(!bUser){toast('בחר עובד');return;}
+      if(!bPts){toast('הכנס מספר נקודות');return;}
+      if(!bnInp.value.trim()){toast('הוסף סיבה');return;}
       if(!DB.bonus)DB.bonus=[];
       DB.bonus.push({id:'b'+Date.now(),uid:bUser,pts:bPts,note:bnInp.value.trim(),date:today,by:ME.id});
-      save();toast(bPts+'★ ניתנו \u2713');renderTab();
-    },{width:'100%',marginTop:'8px',color:'var(--earth)'}));
+      save();toast((bPts>0?'+':'')+bPts+'★ ניתנו ✓');renderTab();
+    },{width:'100%',marginTop:'10px',color:'var(--earth)'}));
     main.appendChild(bc);
   }
+
+  // ============ INFO BOX (how scoring works) ============
+  const infoBox=el('div',{style:{background:'var(--mist)',borderRadius:'10px',padding:'12px',marginTop:'10px',fontSize:'11px',color:'var(--clay)',lineHeight:'1.6'}});
+  infoBox.appendChild(el('div',{style:{fontWeight:700,color:'var(--earth)',marginBottom:'6px',fontSize:'12px'}},'ℹ️ איך הניקוד עובד?'));
+  infoBox.appendChild(el('div',{},[
+    el('div',{},'🔴 משימה בעדיפות גבוהה = 10★'),
+    el('div',{},'🟡 משימה בעדיפות בינונית = 5★'),
+    el('div',{},'🟢 משימה בעדיפות נמוכה = 2★'),
+    el('div',{},'🎁 בונוס - מנהל יכול להעניק לפי שיקול דעת'),
+    el('div',{style:{marginTop:'4px',fontStyle:'italic'}},'בכל 1 בחודש המונה החודשי מתאפס - אבל הכוכבים נשארים בארכיון לתמיד 📚'),
+  ]));
+  main.appendChild(infoBox);
+}
+
+// Show user's full breakdown for a specific month (modal)
+function showUserMonthDetail(uid,year,month){
+  const u=gu(uid);if(!u)return;
+  const stats=gpm(uid,year,month);
+  const tasks=gpmTasks(uid,year,month);
+  const bonuses=stats.bonusList;
+
+  const bg=el('div',{className:'modal-bg',onclick:e=>{if(e.target===e.currentTarget)bg.remove();}});
+  const m=el('div',{className:'modal',style:{maxWidth:'480px'}});
+
+  // Header
+  m.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'12px',marginBottom:'14px',paddingBottom:'12px',borderBottom:'1px solid var(--mist)'}},[
+    el('div',{style:{width:'52px',height:'52px',borderRadius:'50%',background:u.color+'25',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'28px'}},u.emoji),
+    el('div',{style:{flex:1}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'18px',fontWeight:900,color:'var(--earth)'}},u.name),
+      el('div',{style:{fontSize:'11px',color:'var(--clay)'}},MONTHS[month]+' '+year),
+    ]),
+    el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'50%',width:'30px',height:'30px',fontSize:'16px',cursor:'pointer'},onclick:()=>bg.remove()},'✕'),
+  ]));
+
+  // Total stars big
+  m.appendChild(el('div',{style:{textAlign:'center',padding:'14px',background:'linear-gradient(135deg,var(--earth),var(--soil))',borderRadius:'12px',marginBottom:'14px'}},[
+    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'42px',fontWeight:900,color:'var(--gold)',lineHeight:'1'}},stats.total+'★'),
+    el('div',{style:{fontSize:'10px',color:'rgba(232,216,184,.7)',marginTop:'4px'}},'סה"כ נקודות החודש'),
+  ]));
+
+  // Tasks list
+  m.appendChild(el('div',{style:{fontWeight:700,fontSize:'13px',marginBottom:'8px',color:'var(--earth)'}},'✅ משימות שבוצעו ('+tasks.length+')'));
+  if(tasks.length===0){
+    m.appendChild(el('div',{style:{textAlign:'center',color:'var(--clay)',padding:'10px',fontSize:'12px'}},'אין משימות'));
+  } else {
+    const tlist=el('div',{style:{maxHeight:'180px',overflowY:'auto',background:'var(--mist)',borderRadius:'8px',padding:'6px',marginBottom:'12px'}});
+    tasks.forEach(t=>{
+      tlist.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'5px 6px',borderBottom:'1px solid rgba(0,0,0,.04)',fontSize:'11px'}},[
+        el('span',{style:{width:'8px',height:'8px',borderRadius:'50%',background:PRI[t.pri]?.c||'#999',flexShrink:0}},''),
+        el('span',{style:{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},t.title),
+        el('span',{style:{color:'var(--clay)',fontSize:'10px'}},fd(t.dateKey)),
+        el('span',{style:{fontWeight:800,color:PRI[t.pri]?.c||'var(--earth)',minWidth:'30px',textAlign:'left'}},'+'+t.pts+'★'),
+      ]));
+    });
+    m.appendChild(tlist);
+  }
+
+  // Bonuses
+  if(bonuses.length>0){
+    m.appendChild(el('div',{style:{fontWeight:700,fontSize:'13px',marginBottom:'8px',color:'var(--earth)'}},'🎁 בונוסים ('+bonuses.length+')'));
+    const blist=el('div',{style:{background:'var(--mist)',borderRadius:'8px',padding:'6px',marginBottom:'12px'}});
+    bonuses.forEach(b=>{
+      const byU=gu(b.by);
+      blist.appendChild(el('div',{style:{padding:'6px',borderBottom:'1px solid rgba(0,0,0,.04)',fontSize:'11px'}},[
+        el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},[
+          el('span',{style:{fontWeight:600,flex:1}},b.note||'(ללא סיבה)'),
+          el('span',{style:{fontWeight:800,color:b.pts>0?'var(--sage)':'var(--red)'}},(b.pts>0?'+':'')+b.pts+'★'),
+        ]),
+        el('div',{style:{fontSize:'9px',color:'var(--clay)',marginTop:'2px'}},fd(b.date)+(byU?' · '+byU.name:'')),
+      ]));
+    });
+    m.appendChild(blist);
+  }
+
+  // Priority breakdown
+  if(stats.tasksPts>0){
+    m.appendChild(el('div',{style:{fontWeight:700,fontSize:'13px',marginBottom:'8px',color:'var(--earth)'}},'📊 פילוח לפי עדיפות'));
+    const pgrid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'6px',marginBottom:'8px'}});
+    [['high','גבוהה'],['medium','בינונית'],['low','נמוכה']].forEach(([pri,lab])=>{
+      pgrid.appendChild(el('div',{style:{background:PRI[pri].c+'15',border:'1px solid '+PRI[pri].c+'40',borderRadius:'8px',padding:'8px',textAlign:'center'}},[
+        el('div',{style:{fontSize:'11px',color:'var(--clay)',fontWeight:600}},lab),
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'18px',fontWeight:900,color:PRI[pri].c}},(stats.breakdown[pri]||0)+'★'),
+      ]));
+    });
+    m.appendChild(pgrid);
+  }
+
+  bg.appendChild(m);
+  document.body.appendChild(bg);
 }
 
 function rTeam(main){
@@ -2755,6 +3096,89 @@ async function checkAndSendDailyDigest(){
 async function checkAndSendMonthlySummary(){
   if(ME.role!=='מנהל') return;
   await sendMonthlySummary();
+}
+
+// Manager notification: show modal at start of new month with previous month's results
+function checkMonthlyResetNotice(){
+  if(ME.role!=='\u05de\u05e0\u05d4\u05dc')return;
+  const now=new Date();
+  const curY=now.getFullYear(),curM=now.getMonth();
+  // Previous month
+  const prevD=new Date(curY,curM-1,1);
+  const prevY=prevD.getFullYear(),prevM=prevD.getMonth();
+  const noticeKey='monthlyReset-'+curY+'-'+String(curM+1).padStart(2,'0');
+  // Already shown this month to this manager?
+  if(!DB.monthlyResetSeen)DB.monthlyResetSeen={};
+  const seenBy=DB.monthlyResetSeen[noticeKey]||[];
+  if(seenBy.includes(ME.id))return;
+  // Check if previous month had any activity
+  const prevStats=DB.users.map(u=>({u,...gpm(u.id,prevY,prevM)}));
+  const hasActivity=prevStats.some(s=>s.total>0);
+  if(!hasActivity)return;
+  // Show modal
+  const ranked=prevStats.sort((a,b)=>b.total-a.total).filter(s=>s.total>0);
+  const winner=ranked[0];
+  const totalTasks=prevStats.reduce((s,p)=>s+p.tasksCount,0);
+
+  const bg=el('div',{className:'modal-bg',style:{zIndex:600}});
+  const m=el('div',{className:'modal',style:{maxWidth:'440px',background:'linear-gradient(160deg,#3d2510,#5a3818)',color:'var(--gold)',border:'2px solid var(--gold)'}});
+
+  m.appendChild(el('div',{style:{textAlign:'center',marginBottom:'14px'}},[
+    el('div',{style:{fontSize:'42px',marginBottom:'6px'}},'🌅'),
+    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'20px',fontWeight:900,color:'var(--gold)'}},'חודש חדש!'),
+    el('div',{style:{fontSize:'12px',color:'rgba(232,216,184,.75)',marginTop:'3px'}},MONTHS[curM]+' '+curY+' התחיל'),
+    el('div',{style:{fontSize:'11px',color:'rgba(232,216,184,.5)',marginTop:'8px',fontStyle:'italic'}},'הניקוד החודשי התאפס · הארכיון נשמר ✓'),
+  ]));
+
+  // Previous month summary card
+  m.appendChild(el('div',{style:{background:'rgba(0,0,0,.25)',borderRadius:'10px',padding:'12px',marginBottom:'12px',border:'1px solid rgba(232,184,75,.2)'}},[
+    el('div',{style:{fontSize:'11px',color:'rgba(232,216,184,.6)',marginBottom:'8px',textAlign:'center',letterSpacing:'1px'}},'★ סיכום '+MONTHS[prevM]+' '+prevY+' ★'),
+    // Winner
+    winner?el('div',{style:{textAlign:'center',marginBottom:'10px',padding:'10px',background:'rgba(232,184,75,.08)',borderRadius:'8px',border:'1px solid rgba(232,184,75,.3)'}},[
+      el('div',{style:{fontSize:'10px',color:'var(--gold)',fontWeight:700,letterSpacing:'1px',marginBottom:'4px'}},'🏆 אלוף החודש'),
+      el('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',gap:'10px'}},[
+        el('span',{style:{fontSize:'34px'}},winner.u.emoji),
+        el('div',{},[
+          el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'17px',fontWeight:900,color:'#fff'}},winner.u.name),
+          el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,color:'var(--gold)'}},winner.total+'★'),
+        ]),
+      ]),
+    ]):'',
+    // Top 3
+    el('div',{style:{display:'flex',flexDirection:'column',gap:'5px'}},
+      ranked.slice(0,5).map((s,i)=>el('div',{style:{display:'flex',alignItems:'center',gap:'8px',fontSize:'12px',padding:'4px 8px',background:i===0?'rgba(232,184,75,.05)':'transparent',borderRadius:'5px'}},[
+        el('span',{style:{width:'20px',color:i===0?'#E8B84B':i===1?'#C0C0C0':i===2?'#CD7F32':'rgba(232,216,184,.5)',fontWeight:700}},['🥇','🥈','🥉'][i]||(i+1)),
+        el('span',{style:{fontSize:'15px'}},s.u.emoji),
+        el('span',{style:{flex:1,color:'#fff'}},s.u.name),
+        el('span',{style:{color:'var(--gold)',fontWeight:700}},s.total+'★'),
+      ]))
+    ),
+    // Total tasks
+    el('div',{style:{borderTop:'1px solid rgba(232,184,75,.15)',marginTop:'8px',paddingTop:'8px',fontSize:'11px',color:'rgba(232,216,184,.65)',textAlign:'center'}},'סה"כ '+totalTasks+' משימות בוצעו החודש'),
+  ]));
+
+  // Buttons
+  m.appendChild(el('div',{style:{display:'flex',gap:'8px'}},[
+    el('button',{style:{flex:1,background:'rgba(232,184,75,.15)',color:'var(--gold)',border:'1px solid var(--gold)',borderRadius:'8px',padding:'10px',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'},onclick:()=>{
+      // Mark seen
+      if(!DB.monthlyResetSeen[noticeKey])DB.monthlyResetSeen[noticeKey]=[];
+      DB.monthlyResetSeen[noticeKey].push(ME.id);
+      save();
+      // Go to archive month
+      HM=prevM;HY=prevY;TAB='score';
+      bg.remove();
+      renderApp();
+    }},'📚 צפה בארכיון'),
+    el('button',{style:{flex:1,background:'var(--gold)',color:'var(--earth)',border:'none',borderRadius:'8px',padding:'10px',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'},onclick:()=>{
+      if(!DB.monthlyResetSeen[noticeKey])DB.monthlyResetSeen[noticeKey]=[];
+      DB.monthlyResetSeen[noticeKey].push(ME.id);
+      save();
+      bg.remove();
+    }},'✓ הבנתי, יאללה לחודש חדש'),
+  ]));
+
+  bg.appendChild(m);
+  document.body.appendChild(bg);
 }
 
 function rAdmin(main){
