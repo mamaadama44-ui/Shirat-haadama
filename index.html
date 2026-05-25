@@ -458,7 +458,7 @@ function renderApp(){
     el('div',{className:'prog-w'},[el('div',{className:'prog-bg'},[pf])]),tw
   ]);
   const main=el('div',{className:'app-main',id:'app-main'});
-  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות & שעות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 עונות'},...(ME.role==='מנהל'?[{id:'admin',l:'⚙️ ניהול'}]:[])];
+  const TABS=[{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'score',l:'🏆 ניקוד'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 עונות'}];
   TABS.forEach(t=>{
     const b=el('button',{className:'tab-btn'+(t.id===TAB?' on':''),onclick:()=>{TAB=t.id;tw.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');renderTab(main,pf);}},t.l);
     tw.appendChild(b);
@@ -493,7 +493,7 @@ function renderTab(mainEl,pfEl){
   else if(TAB==='jour')rJournal(main);
   else if(TAB==='sum')rSummary(main);
   else if(TAB==='garden')rGarden(main);
-  else if(TAB==='admin')rAdmin(main);
+  else {TAB='tasks';rTasks(main);}
   if(pf){
     const today=tdk();const dayComps=DB.comps[today]||{};
     const todayTasks=DB.rT.length+DB.oT.filter(t=>!t.done).length;
@@ -2010,71 +2010,54 @@ function showUserMonthDetail(uid,year,month){
 }
 
 function rTeam(main){
-  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,marginBottom:'12px'}},'👥 צוות ושעות עבודה'));
-
+  const isAdmin=ME.role==='\u05de\u05e0\u05d4\u05dc';
   const now=new Date();
   const mPrefix=`${HY}-${String(HM+1).padStart(2,'0')}`;
+  const today=tdk();
 
-  // Month nav
-  const nav=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}});
-  nav.appendChild(el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer'},onclick:()=>{HM--;if(HM<0){HM=11;HY--;}renderTab();}},'◀'));
-  nav.appendChild(el('span',{style:{fontWeight:600,fontSize:'13px'}},MONTHS[HM]+' '+HY));
-  nav.appendChild(el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer'},onclick:()=>{HM++;if(HM>11){HM=0;HY++;}renderTab();}},'▶'));
+  // ============ HEADER ============
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'17px',fontWeight:900,marginBottom:'4px',display:'flex',alignItems:'center',gap:'8px'}},[
+    el('span',{style:{fontSize:'22px'}},'👥'),
+    el('span',{},'צוות'),
+  ]));
+  main.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'12px'}},isAdmin?'ניהול עובדים, שעות וזמנים':'הצוות שלי ושעות העבודה'));
+
+  // ============ MONTH NAV ============
+  const nav=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',background:'var(--mist)',borderRadius:'10px',padding:'4px 8px'}});
+  nav.appendChild(el('button',{style:{background:'none',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer',fontSize:'14px'},onclick:()=>{HM--;if(HM<0){HM=11;HY--;}renderTab();}},'◀'));
+  nav.appendChild(el('div',{style:{textAlign:'center',flex:1,fontWeight:700,fontSize:'14px',color:'var(--earth)'}},MONTHS[HM]+' '+HY));
+  nav.appendChild(el('button',{style:{background:'none',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer',fontSize:'14px'},onclick:()=>{HM++;if(HM>11){HM=0;HY++;}renderTab();}},'▶'));
   main.appendChild(nav);
 
-  DB.users.forEach(u=>{
-    const pts=gp(u.id);
-    const today=tdk();
-    const todayDone=Object.entries(DB.comps[today]||{}).filter(([,v])=>v===u.id).length;
-    const myLogs=(DB.hoursLog||[]).filter(h=>h.uid===u.id&&h.date.startsWith(mPrefix));
-    const monthHrs=myLogs.reduce((s,h)=>s+ch(h.start,h.end),0);
-    const pct=Math.min(monthHrs/160*100,100);
-    const isManager=u.role==='\u05de\u05e0\u05d4\u05dc';
+  // ============ MY CARD (current user, prominent) ============
+  const myCard=buildUserCard(ME,mPrefix,today,isAdmin,true);
+  main.appendChild(myCard);
 
-    const c=card([
-      el('div',{style:{display:'flex',gap:'12px',alignItems:'center',marginBottom:'10px'}},[
-        el('div',{style:{width:'44px',height:'44px',borderRadius:'50%',background:u.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'22px',flexShrink:0}},u.emoji),
-        el('div',{style:{flex:1}},[
-          el('div',{style:{fontWeight:700,fontSize:'15px'}},u.name),
-          el('div',{style:{display:'flex',gap:'6px',alignItems:'center',marginTop:'2px'}},[
-            el('span',{style:{background:isManager?'rgba(200,90,58,.12)':'rgba(106,154,90,.12)',color:isManager?'var(--red)':'var(--sage)',padding:'2px 8px',borderRadius:'8px',fontSize:'11px',fontWeight:700}},isManager?'👑 מנהל':'👤 עובד'),
-          ]),
-          el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px'}},[
-            el('span',{},pts+'\u2605 · '),
-            el('span',{},todayDone+' משימות היום'),
-          ]),
-        ]),
-        el('div',{style:{textAlign:'center'}},[
-          el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'20px',fontWeight:900,color:pct>=100?'var(--sage)':pct>50?'var(--straw)':'var(--clay)'}},monthHrs.toFixed(1)),
-          el('div',{style:{fontSize:'10px',color:'var(--clay)'}},"ש' החודש"),
-        ]),
-        // Edit button (manager only)
-        ME.role==='\u05de\u05e0\u05d4\u05dc'?el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 8px',fontSize:'12px',cursor:'pointer'},onclick:()=>editWorker(u)},'✏️'):'',
-      ]),
-      pbar(pct,pct>=100?'var(--sage)':pct>50?'var(--straw)':'var(--red)',6),
-      el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'3px',textAlign:'left'}},monthHrs.toFixed(1)+'/160 שעות'),
-      myLogs.length?el('div',{style:{marginTop:'8px',borderTop:'1px solid var(--mist)',paddingTop:'6px'}},[
-        ...myLogs.slice(-3).reverse().map(h=>el('div',{style:{display:'flex',fontSize:'11px',color:'var(--clay)',padding:'2px 0',gap:'6px'}},[
-          el('span',{},fd(h.date)),
-          el('span',{},h.start+'-'+h.end),
-          el('span',{style:{fontWeight:600,color:'var(--sage)'}},ch(h.start,h.end).toFixed(1)+" ש'"),
-          h.note?el('span',{style:{fontStyle:'italic',flex:1}},h.note):'',
-          ME.role==='\u05de\u05e0\u05d4\u05dc'||h.uid===ME.id?el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'11px'},onclick:()=>{if(confirm('למחוק?')){DB.hoursLog=DB.hoursLog.filter(x=>x.id!==h.id);save();renderTab();}}},'🗑'):'',
-        ]))
-      ]):'',
-    ]);
-    main.appendChild(c);
-  });
+  // ============ OTHER USERS ============
+  const others=DB.users.filter(u=>u.id!==ME.id);
+  if(others.length>0){
+    main.appendChild(el('div',{style:{fontSize:'12px',color:'var(--clay)',fontWeight:600,margin:'14px 0 6px',display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{},'👤'),el('span',{},isAdmin?'כל הצוות ('+others.length+')':'שאר הצוות'),
+    ]));
+    others.forEach(u=>{
+      main.appendChild(buildUserCard(u,mPrefix,today,isAdmin,false));
+    });
+  }
 
-  // Log hours
-  const logCard=card([el('div',{className:'card-t'},'➕ רישום שעות')]);
+  // ============ LOG HOURS ============
+  const logCard=el('div',{className:'card',style:{padding:'14px',marginTop:'14px',background:'linear-gradient(135deg,rgba(106,154,90,.06),rgba(232,184,75,.04))'}});
+  logCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}},[
+    el('span',{},'⏱'),el('span',{},'רישום שעות עבודה'),
+  ]));
   const di=finp({type:'date',value:tdk()});
   const si2=finp({type:'time',value:'08:00'});
   const ei2=finp({type:'time',value:'16:00'});
   const nt2=fta({placeholder:'הערה (אופציונלי)',style:{minHeight:'36px'}});
   let logUid=ME.id;
-  const userSel=ME.role==='\u05de\u05e0\u05d4\u05dc'?fsel(DB.users.map(u=>[u.id,u.emoji+' '+u.name]),ME.id,v=>{logUid=v;}):null;
-  if(userSel){logCard.appendChild(el('div',{className:'flab'},'עובד'));logCard.appendChild(userSel);}
+  if(isAdmin){
+    logCard.appendChild(el('div',{className:'flab'},'עובד'));
+    logCard.appendChild(fsel(DB.users.map(u=>[u.id,u.emoji+' '+u.name]),ME.id,v=>{logUid=v;}));
+  }
   logCard.appendChild(el('div',{className:'fgrid'},[
     el('div',{},[el('div',{className:'flab'},'תאריך'),di]),
     el('div',{},[el('div',{className:'flab'},'התחלה'),si2]),
@@ -2087,9 +2070,276 @@ function rTeam(main){
     if(hrs<=0){toast('שעת סיום לפני התחלה');return;}
     if(!DB.hoursLog)DB.hoursLog=[];
     DB.hoursLog.push({id:'h'+Date.now(),uid:logUid,date:di.value,start:si2.value,end:ei2.value,hrs,note:nt2.value.trim()});
+    al('hours','שעות עבודה: '+hrs.toFixed(1)+'ש\'',si2.value+'–'+ei2.value+(logUid!==ME.id?' (עבור '+gu(logUid)?.name+')':''));
     save();toast('+'+hrs.toFixed(1)+' שעות \u2713');renderTab();
   },{width:'100%',marginTop:'8px'}));
   main.appendChild(logCard);
+
+  // ============ ADMIN ONLY: ADD NEW USER ============
+  if(isAdmin){
+    main.appendChild(el('div',{style:{fontSize:'12px',color:'var(--clay)',fontWeight:600,margin:'14px 0 6px',display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{},'⚙️'),el('span',{},'ניהול עובדים'),
+    ]));
+
+    const ac=el('div',{className:'card',style:{padding:'14px',border:'1px dashed var(--red)',background:'rgba(200,90,58,.04)'}});
+    ac.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'4px',display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{},'➕'),el('span',{},'הוסף עובד חדש'),
+    ]));
+    ac.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'10px'}},'מנהלים בלבד יכולים ליצור חשבונות חדשים'));
+    const ni=finp({placeholder:'שם מלא'});
+    const ei=finp({type:'email',placeholder:'email@sheirat.com'});
+    const pi=finp({type:'password',placeholder:'לפחות 4 תווים'});
+    const rl=fsel([['\u05e2\u05d5\u05d1\u05d3','\u05e2\u05d5\u05d1\u05d3'],['\u05de\u05e0\u05d4\u05dc','\u05de\u05e0\u05d4\u05dc']],'\u05e2\u05d5\u05d1\u05d3');
+    let newE=EMOJIS[0];
+    const epg=el('div',{className:'ep-grid'});
+    EMOJIS.forEach((e,i)=>{
+      const s=el('span',{className:'ep-item'+(i===0?' sel':'')},e);
+      s.onclick=()=>{epg.querySelectorAll('.ep-item').forEach(x=>x.classList.remove('sel'));s.classList.add('sel');newE=e;};
+      epg.appendChild(s);
+    });
+    const addBtn=btn('\u2713 \u05d4\u05d5\u05e1\u05e3 \u05e2\u05d5\u05d1\u05d3','var(--red)',async()=>{
+      if(!ni.value.trim()||!ei.value||!pi.value){toast('מלא את כל השדות');return;}
+      if(DB.users.find(u=>u.email===ei.value.toLowerCase())){toast('מייל כבר קיים');return;}
+      if(pi.value.length<4){toast('סיסמא קצרה');return;}
+      const newU={id:'u'+Date.now(),name:ni.value.trim(),email:ei.value.toLowerCase(),pass:pi.value,emoji:newE,color:COLS[DB.users.length%COLS.length],role:rl.value};
+      DB.users.push(newU);
+      al('user','עובד חדש נוסף: '+newU.name,newU.role,'');
+      save();toast('עובד נוסף \u2713');renderTab();
+    },{width:'100%',marginTop:'10px',color:'var(--earth)'});
+    ac.appendChild(el('div',{className:'flab'},'שם'));ac.appendChild(ni);
+    ac.appendChild(el('div',{className:'flab',style:{marginTop:'6px'}},'מייל'));ac.appendChild(ei);
+    ac.appendChild(el('div',{className:'flab',style:{marginTop:'6px'}},'סיסמא'));ac.appendChild(pi);
+    ac.appendChild(el('div',{className:'flab',style:{marginTop:'6px'}},'תפקיד'));ac.appendChild(rl);
+    ac.appendChild(el('div',{className:'flab',style:{marginTop:'6px'}},'אמוג׳י'));ac.appendChild(epg);
+    ac.appendChild(addBtn);
+    main.appendChild(ac);
+  }
+}
+
+// Build a single user card with hours summary, edit/delete options
+function buildUserCard(u,mPrefix,today,isAdmin,isMe){
+  const pts=gp(u.id);
+  const mpts=gpm(u.id,HY,HM).total;
+  const todayDone=Object.entries(DB.comps[today]||{}).filter(([,v])=>v===u.id).length;
+  const myLogs=(DB.hoursLog||[]).filter(h=>h.uid===u.id&&h.date.startsWith(mPrefix));
+  const monthHrs=myLogs.reduce((s,h)=>s+ch(h.start,h.end),0);
+  const uniqueDays=new Set(myLogs.map(h=>h.date)).size;
+  const pct=Math.min(monthHrs/160*100,100);
+  const isManager=u.role==='\u05de\u05e0\u05d4\u05dc';
+
+  const c=el('div',{className:'card',style:{padding:'14px',marginBottom:'10px',border:isMe?'2px solid var(--sage)':isManager?'1px solid rgba(200,90,58,.2)':'1px solid var(--mist)',background:isMe?'linear-gradient(135deg,rgba(106,154,90,.05),rgba(232,184,75,.03))':'var(--white)'}});
+
+  // TOP ROW: avatar, name, role badge, edit/delete
+  c.appendChild(el('div',{style:{display:'flex',gap:'12px',alignItems:'center',marginBottom:'10px'}},[
+    el('div',{style:{width:'48px',height:'48px',borderRadius:'50%',background:u.color+'25',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'24px',flexShrink:0,border:isMe?'2px solid var(--sage)':'2px solid transparent'}},u.emoji),
+    el('div',{style:{flex:1,minWidth:0}},[
+      el('div',{style:{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap'}},[
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'15px',color:'var(--earth)'}},u.name),
+        isMe?el('span',{style:{fontSize:'9px',background:'var(--sage)',color:'#fff',padding:'1px 6px',borderRadius:'8px',fontWeight:700}},'אתה'):'',
+      ]),
+      el('div',{style:{display:'flex',gap:'5px',alignItems:'center',marginTop:'3px',flexWrap:'wrap'}},[
+        el('span',{style:{background:isManager?'rgba(200,90,58,.12)':'rgba(106,154,90,.12)',color:isManager?'var(--red)':'var(--sage)',padding:'2px 7px',borderRadius:'8px',fontSize:'10px',fontWeight:700}},isManager?'👑 מנהל':'👤 עובד'),
+        el('span',{style:{fontSize:'10px',color:'var(--clay)'}},u.email),
+      ]),
+    ]),
+    // Hours summary on right
+    el('div',{style:{textAlign:'center',minWidth:'62px'}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,color:pct>=100?'var(--sage)':pct>50?'var(--straw)':'var(--clay)',lineHeight:'1'}},monthHrs.toFixed(1)),
+      el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'2px'}},"ש' החודש"),
+    ]),
+  ]));
+
+  // STATS ROW: points, days, tasks
+  c.appendChild(el('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'6px',marginBottom:'10px'}},[
+    statTile('🌟',mpts+'★','החודש'),
+    statTile('🏆',pts+'★','סה"כ'),
+    statTile('📅',uniqueDays,'ימי עבודה'),
+    statTile('✅',todayDone,'משימות היום'),
+  ]));
+
+  // Progress bar
+  c.appendChild(pbar(pct,pct>=100?'var(--sage)':pct>50?'var(--straw)':'var(--red)',6));
+  c.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'3px',textAlign:'left'}},monthHrs.toFixed(1)+'/160 שעות'));
+
+  // Recent hours (last 3)
+  if(myLogs.length>0){
+    const recent=el('div',{style:{marginTop:'10px',borderTop:'1px solid var(--mist)',paddingTop:'8px'}});
+    recent.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)',fontWeight:600,marginBottom:'4px'}},'רשומות אחרונות:'));
+    myLogs.slice(-3).reverse().forEach(h=>{
+      recent.appendChild(el('div',{style:{display:'flex',fontSize:'11px',color:'var(--clay)',padding:'3px 0',gap:'8px',alignItems:'center'}},[
+        el('span',{style:{minWidth:'50px',fontWeight:600}},fd(h.date)),
+        el('span',{style:{minWidth:'78px'}},h.start+'–'+h.end),
+        el('span',{style:{fontWeight:600,color:'var(--sage)'}},ch(h.start,h.end).toFixed(1)+"ש'"),
+        h.note?el('span',{style:{fontStyle:'italic',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},h.note):el('span',{style:{flex:1}}),
+        (isAdmin||h.uid===ME.id)?el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'12px',padding:'2px'},onclick:()=>{if(confirm('למחוק רשומה זו?')){DB.hoursLog=DB.hoursLog.filter(x=>x.id!==h.id);al('hours-del','מחיקת שעות '+ch(h.start,h.end).toFixed(1)+'ש\'',fd(h.date)+' '+h.start+'-'+h.end);save();renderTab();}}},'🗑'):'',
+      ]));
+    });
+    c.appendChild(recent);
+  }
+
+  // Action buttons row
+  const actions=el('div',{style:{display:'flex',gap:'6px',marginTop:'10px',flexWrap:'wrap'}});
+  // View all hours - everyone can see their own, managers can see all
+  if(isMe||isAdmin){
+    actions.appendChild(el('button',{style:{flex:'1',minWidth:'100px',background:'var(--mist)',border:'none',borderRadius:'7px',padding:'7px 10px',fontSize:'11px',cursor:'pointer',fontWeight:600,color:'var(--earth)',fontFamily:'inherit'},onclick:()=>showUserHoursDetail(u.id)},'📋 כל השעות ('+myLogs.length+')'));
+  }
+  // Manager actions
+  if(isAdmin){
+    actions.appendChild(el('button',{style:{flex:'1',minWidth:'70px',background:'var(--mist)',border:'none',borderRadius:'7px',padding:'7px 10px',fontSize:'11px',cursor:'pointer',fontWeight:600,color:'var(--earth)',fontFamily:'inherit'},onclick:()=>editWorker(u)},'✏️ ערוך'));
+    // Toggle role (not on self)
+    if(u.id!==ME.id){
+      actions.appendChild(el('button',{style:{flex:'1',minWidth:'70px',background:isManager?'rgba(106,154,90,.12)':'rgba(200,90,58,.12)',color:isManager?'var(--sage)':'var(--red)',border:'1px solid '+(isManager?'rgba(106,154,90,.3)':'rgba(200,90,58,.3)'),borderRadius:'7px',padding:'7px 10px',fontSize:'11px',cursor:'pointer',fontWeight:600,fontFamily:'inherit'},onclick:()=>{
+        const newRole=isManager?'\u05e2\u05d5\u05d1\u05d3':'\u05de\u05e0\u05d4\u05dc';
+        if(!confirm('להפוך את '+u.name+' ל-'+newRole+'?'))return;
+        u.role=newRole;
+        al('user-role','שינוי תפקיד: '+u.name,'→ '+newRole);
+        save();toast('הוחלף ל-'+newRole+' \u2713');renderTab();
+      }},isManager?'→ עובד':'→ מנהל'));
+      // Delete button
+      actions.appendChild(el('button',{style:{background:'rgba(200,90,58,.1)',color:'var(--red)',border:'1px solid rgba(200,90,58,.3)',borderRadius:'7px',padding:'7px 10px',fontSize:'11px',cursor:'pointer',fontWeight:600,fontFamily:'inherit'},onclick:()=>deleteWorker(u)},'🗑'));
+    }
+  }
+  if(actions.children.length>0)c.appendChild(actions);
+
+  return c;
+}
+
+// Small stat tile helper
+function statTile(emoji,value,label){
+  return el('div',{style:{background:'var(--mist)',borderRadius:'8px',padding:'6px 4px',textAlign:'center',border:'1px solid rgba(232,216,184,.4)'}},[
+    el('div',{style:{fontSize:'13px',marginBottom:'2px'}},emoji),
+    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:900,color:'var(--earth)',lineHeight:'1'}},value),
+    el('div',{style:{fontSize:'9px',color:'var(--clay)',marginTop:'2px'}},label),
+  ]);
+}
+
+// Show full hours detail in modal
+function showUserHoursDetail(uid){
+  const u=gu(uid);if(!u)return;
+  const isAdmin=ME.role==='\u05de\u05e0\u05d4\u05dc';
+  if(uid!==ME.id&&!isAdmin){toast('אין הרשאה');return;}
+
+  const bg=el('div',{className:'modal-bg',onclick:e=>{if(e.target===e.currentTarget)bg.remove();}});
+  const m=el('div',{className:'modal',style:{maxWidth:'520px'}});
+
+  // Header
+  m.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'12px',marginBottom:'14px',paddingBottom:'12px',borderBottom:'1px solid var(--mist)'}},[
+    el('div',{style:{width:'52px',height:'52px',borderRadius:'50%',background:u.color+'25',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'28px'}},u.emoji),
+    el('div',{style:{flex:1}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'18px',fontWeight:900,color:'var(--earth)'}},u.name),
+      el('div',{style:{fontSize:'11px',color:'var(--clay)'}},'יומן שעות עבודה'),
+    ]),
+    el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'50%',width:'30px',height:'30px',fontSize:'16px',cursor:'pointer'},onclick:()=>bg.remove()},'✕'),
+  ]));
+
+  // Month selector
+  let viewYear=HY,viewMonth=HM;
+  const monthLabel=el('div',{style:{textAlign:'center',flex:1,fontWeight:700,fontSize:'13px'}},MONTHS[viewMonth]+' '+viewYear);
+  const content=el('div',{});
+  const renderContent=()=>{
+    content.innerHTML='';
+    const pfx=`${viewYear}-${String(viewMonth+1).padStart(2,'0')}`;
+    const logs=(DB.hoursLog||[]).filter(h=>h.uid===uid&&h.date.startsWith(pfx)).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));
+    const monthHrs=logs.reduce((s,h)=>s+ch(h.start,h.end),0);
+    const days=new Set(logs.map(h=>h.date)).size;
+
+    // Stats summary
+    content.appendChild(el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'8px',marginBottom:'14px'}},[
+      el('div',{style:{background:'linear-gradient(135deg,var(--earth),var(--soil))',color:'var(--gold)',borderRadius:'10px',padding:'10px 6px',textAlign:'center'}},[
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,lineHeight:'1'}},monthHrs.toFixed(1)),
+        el('div',{style:{fontSize:'10px',opacity:.8,marginTop:'3px'}},'שעות'),
+      ]),
+      el('div',{style:{background:'var(--mist)',borderRadius:'10px',padding:'10px 6px',textAlign:'center'}},[
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,color:'var(--earth)',lineHeight:'1'}},days),
+        el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'3px'}},'ימי עבודה'),
+      ]),
+      el('div',{style:{background:'var(--mist)',borderRadius:'10px',padding:'10px 6px',textAlign:'center'}},[
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,color:'var(--earth)',lineHeight:'1'}},days>0?(monthHrs/days).toFixed(1):'0'),
+        el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'3px'}},'ממוצע יומי'),
+      ]),
+    ]));
+
+    // Group by date
+    if(logs.length===0){
+      content.appendChild(el('div',{style:{textAlign:'center',color:'var(--clay)',padding:'30px',fontSize:'12px'}},'אין רשומות שעות בחודש זה'));
+      return;
+    }
+
+    const byDate={};
+    logs.forEach(h=>{if(!byDate[h.date])byDate[h.date]=[];byDate[h.date].push(h);});
+    const sortedDates=Object.keys(byDate).sort().reverse();
+
+    content.appendChild(el('div',{style:{fontWeight:700,fontSize:'12px',marginBottom:'6px',color:'var(--earth)'}},'📅 פירוט לפי ימים'));
+    const listWrap=el('div',{style:{maxHeight:'350px',overflowY:'auto',background:'var(--mist)',borderRadius:'8px',padding:'6px'}});
+    sortedDates.forEach(date=>{
+      const dayLogs=byDate[date];
+      const dayTotal=dayLogs.reduce((s,h)=>s+ch(h.start,h.end),0);
+      const dateD=new Date(date+'T00:00:00');
+      const weekdays=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+
+      const dayCard=el('div',{style:{background:'var(--white)',borderRadius:'7px',padding:'8px 10px',marginBottom:'5px',border:'1px solid rgba(232,216,184,.3)'}});
+      dayCard.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'4px'}},[
+        el('div',{style:{fontWeight:700,fontSize:'12px',color:'var(--earth)'}},weekdays[dateD.getDay()]+', '+fd(date)),
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:900,color:'var(--sage)'}},dayTotal.toFixed(1)+'ש\''),
+      ]));
+      dayLogs.forEach(h=>{
+        dayCard.appendChild(el('div',{style:{display:'flex',gap:'8px',fontSize:'11px',color:'var(--clay)',padding:'3px 0',alignItems:'center',borderTop:dayLogs.indexOf(h)>0?'1px solid rgba(232,216,184,.2)':'none'}},[
+          el('span',{style:{minWidth:'78px'}},h.start+'–'+h.end),
+          el('span',{style:{fontWeight:600,color:'var(--earth)',minWidth:'42px'}},ch(h.start,h.end).toFixed(1)+'ש\''),
+          h.note?el('span',{style:{fontStyle:'italic',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},'📝 '+h.note):el('span',{style:{flex:1}}),
+          (isAdmin||h.uid===ME.id)?el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'12px'},onclick:()=>{
+            if(confirm('למחוק רשומה זו?\n'+fd(h.date)+' '+h.start+'-'+h.end)){
+              DB.hoursLog=DB.hoursLog.filter(x=>x.id!==h.id);
+              al('hours-del','מחיקת שעות '+ch(h.start,h.end).toFixed(1)+'ש\'',fd(h.date)+' '+h.start+'-'+h.end+(h.uid!==ME.id?' (של '+gu(h.uid)?.name+')':''));
+              save();renderContent();renderTab();
+            }
+          }},'🗑'):'',
+        ]));
+      });
+      listWrap.appendChild(dayCard);
+    });
+    content.appendChild(listWrap);
+  };
+
+  const monthNav=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',background:'var(--mist)',borderRadius:'8px',padding:'4px 8px'}});
+  monthNav.appendChild(el('button',{style:{background:'none',border:'none',padding:'5px 10px',cursor:'pointer',fontSize:'14px'},onclick:()=>{viewMonth--;if(viewMonth<0){viewMonth=11;viewYear--;}monthLabel.textContent=MONTHS[viewMonth]+' '+viewYear;renderContent();}},'◀'));
+  monthNav.appendChild(monthLabel);
+  monthNav.appendChild(el('button',{style:{background:'none',border:'none',padding:'5px 10px',cursor:'pointer',fontSize:'14px'},onclick:()=>{viewMonth++;if(viewMonth>11){viewMonth=0;viewYear++;}monthLabel.textContent=MONTHS[viewMonth]+' '+viewYear;renderContent();}},'▶'));
+  m.appendChild(monthNav);
+  m.appendChild(content);
+  renderContent();
+
+  bg.appendChild(m);
+  document.body.appendChild(bg);
+}
+
+// Delete worker (admin only) - with safety
+function deleteWorker(u){
+  if(u.id===ME.id){toast('לא ניתן למחוק את עצמך');return;}
+  // First confirmation
+  const userHours=(DB.hoursLog||[]).filter(h=>h.uid===u.id).length;
+  const userBonuses=bonusArr().filter(b=>b.uid===u.id).length;
+  let userTasks=0;
+  Object.values(DB.comps||{}).forEach(dc=>{Object.values(dc).forEach(by=>{if(by===u.id)userTasks++;});});
+
+  const msg='⚠️ למחוק את '+u.name+'?\n\n'+
+    'הנתונים שיימחקו:\n'+
+    '• '+userHours+' רשומות שעות\n'+
+    '• '+userBonuses+' בונוסים\n'+
+    '\nנשמרים:\n'+
+    '• '+userTasks+' משימות שביצע (נשארות ברישום, אך ללא קישור)\n\n'+
+    'פעולה זו לא ניתנת לביטול!';
+  if(!confirm(msg))return;
+  if(!confirm('בטוח? באמת למחוק את '+u.name+' לצמיתות?'))return;
+
+  // Remove user
+  DB.users=DB.users.filter(x=>x.id!==u.id);
+  // Remove their hours
+  DB.hoursLog=(DB.hoursLog||[]).filter(h=>h.uid!==u.id);
+  // Remove their bonuses
+  DB.bonus=bonusArr().filter(b=>b.uid!==u.id);
+  al('user-del','עובד נמחק: '+u.name,'כולל '+userHours+' שעות + '+userBonuses+' בונוסים','');
+  save();toast(u.name+' נמחק');renderTab();
 }
 
 function editWorker(u){
@@ -2672,6 +2922,104 @@ function rSummary(main){
     ]));
   }
 
+  // Activity changes log (admin only)
+  if(ME.role==='\u05de\u05e0\u05d4\u05dc'){
+    const monthStart=new Date(HY2,HM2,1).getTime();
+    const monthEnd=new Date(HY2,HM2+1,0,23,59,59).getTime();
+    const changes=(DB.actLog||[]).filter(l=>l.ts>=monthStart&&l.ts<=monthEnd);
+    // Group by type
+    const byType={};
+    changes.forEach(c=>{if(!byType[c.type])byType[c.type]=[];byType[c.type].push(c);});
+
+    const typeLabels={
+      'done':{l:'✅ משימות בוצעו',c:'var(--sage)'},
+      'undo':{l:'↩️ ביטולי משימות',c:'var(--clay)'},
+      'inv':{l:'📦 עדכוני מלאי',c:'var(--straw)'},
+      'hours':{l:'⏱ רישומי שעות',c:'var(--sage)'},
+      'hours-del':{l:'🗑 מחיקת שעות',c:'var(--red)'},
+      'user':{l:'➕ הוספת עובדים',c:'var(--sage)'},
+      'user-del':{l:'🗑 מחיקת עובדים',c:'var(--red)'},
+      'user-role':{l:'🔄 שינויי תפקיד',c:'var(--earth)'},
+    };
+
+    const chCard=el('div',{className:'card',style:{padding:'14px'}});
+    chCard.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',marginBottom:'10px',display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{},'📜'),el('span',{},'כל השינויים החודש'),
+      el('span',{style:{fontSize:'10px',color:'var(--clay)',fontWeight:500,marginRight:'auto'}},changes.length+' פעולות'),
+    ]));
+
+    if(changes.length===0){
+      chCard.appendChild(el('div',{style:{textAlign:'center',color:'var(--clay)',padding:'15px',fontSize:'12px'}},'אין פעולות מתועדות בחודש זה'));
+    } else {
+      // Summary tiles - grouped counts
+      const tileGrid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'6px',marginBottom:'12px'}});
+      Object.entries(typeLabels).forEach(([type,info])=>{
+        const count=(byType[type]||[]).length;
+        if(count===0)return;
+        tileGrid.appendChild(el('div',{style:{background:'var(--mist)',borderRadius:'8px',padding:'8px',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'},onclick:()=>showChangesByType(type,info.l,byType[type])},[
+          el('span',{style:{fontSize:'11px',color:'var(--earth)',fontWeight:600}},info.l),
+          el('span',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'17px',fontWeight:900,color:info.c}},count),
+        ]));
+      });
+      chCard.appendChild(tileGrid);
+
+      // Most recent 10 events
+      chCard.appendChild(el('div',{style:{fontSize:'12px',fontWeight:700,color:'var(--earth)',marginBottom:'6px'}},'אחרונים:'));
+      const recentList=el('div',{style:{maxHeight:'220px',overflowY:'auto',background:'var(--mist)',borderRadius:'8px',padding:'6px'}});
+      changes.slice(-15).reverse().forEach(c=>{
+        const info=typeLabels[c.type]||{l:c.type,c:'var(--clay)'};
+        const u=DB.users.find(x=>x.id===c.userId);
+        const tsDate=new Date(c.ts);
+        recentList.appendChild(el('div',{style:{display:'flex',gap:'8px',padding:'5px 6px',fontSize:'11px',borderBottom:'1px solid rgba(0,0,0,.04)',alignItems:'center'}},[
+          el('span',{style:{fontSize:'14px',flexShrink:0}},info.l.split(' ')[0]),
+          el('div',{style:{flex:1,minWidth:0}},[
+            el('div',{style:{fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},c.text),
+            el('div',{style:{fontSize:'9px',color:'var(--clay)',marginTop:'1px'}},(u?u.emoji+' '+u.name:c.userName)+' · '+tsDate.toLocaleDateString('he-IL',{day:'numeric',month:'short'})+' '+tsDate.toTimeString().slice(0,5)+(c.detail?' · '+c.detail:'')),
+          ]),
+        ]));
+      });
+      chCard.appendChild(recentList);
+    }
+    main.appendChild(chCard);
+
+    // Email buttons section (admin only)
+    main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700,margin:'14px 0 8px',color:'var(--earth)',display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{},'📧'),el('span',{},'שליחת מיילים'),
+    ]));
+
+    const emCard=el('div',{className:'card',style:{padding:'14px'}});
+    emCard.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'10px'}},'המיילים נשלחים אוטומטית. אפשר לשלוח גם ידנית:'));
+    emCard.appendChild(el('div',{style:{display:'flex',gap:'8px',flexDirection:'column'}},[
+      btn('📊 שלח סיכום חודשי עכשיו','var(--earth)',async()=>{
+        toast('מכין...',4000);
+        const now2=new Date();
+        const mKey2=HY2+'-'+String(HM2+1).padStart(2,'0');
+        if(DB.emailLog)delete DB.emailLog['monthly-'+mKey2];
+        await sendMonthlySummary(HY2,HM2);
+        toast('נשלח ✓');
+      },{width:'100%'}),
+      btn('📬 שלח סיכום יומי לצוות','var(--sage)',async()=>{
+        toast('שולח...',4000);
+        const t=tdk();if(DB.emailLog)delete DB.emailLog[t];
+        await sendDailyDigest();toast('נשלח ✓');
+      },{width:'100%'}),
+    ]));
+    const mKey2=HY2+'-'+String(HM2+1).padStart(2,'0');
+    const monthlySent=DB.emailLog&&DB.emailLog['monthly-'+mKey2]==='sent';
+    const sentToday=DB.emailLog&&DB.emailLog[tdk()]==='sent';
+    emCard.appendChild(el('div',{style:{display:'flex',gap:'8px',marginTop:'10px',flexDirection:'column'}},[
+      el('div',{style:{fontSize:'11px',color:'var(--clay)',display:'flex',gap:'6px',alignItems:'center',padding:'5px 8px',background:'var(--mist)',borderRadius:'6px'}},[
+        el('span',{style:{fontSize:'14px'}},monthlySent?'✅':'📭'),
+        el('span',{},'סיכום חודש '+MONTHS[HM2]+': '+(monthlySent?'נשלח':'טרם נשלח')),
+      ]),
+      el('div',{style:{fontSize:'11px',color:'var(--clay)',display:'flex',gap:'6px',alignItems:'center',padding:'5px 8px',background:'var(--mist)',borderRadius:'6px'}},[
+        el('span',{style:{fontSize:'14px'}},sentToday?'✅':'📭'),
+        el('span',{},'סיכום היומי של היום: '+(sentToday?'נשלח':'טרם נשלח')),
+      ]),
+    ]));
+    main.appendChild(emCard);
+  }
+
   // Export button for admin
   if(ME.role==='מנהל'){
     main.appendChild(btn('📥 ייצא נתונים (JSON)','var(--earth)',()=>{
@@ -2684,6 +3032,36 @@ function rSummary(main){
       toast('קובץ הורד ✓');
     },{width:'100%',marginTop:'12px',fontSize:'13px'}));
   }
+}
+
+// Show all changes of a specific type in a modal
+function showChangesByType(type,label,events){
+  const bg=el('div',{className:'modal-bg',onclick:e=>{if(e.target===e.currentTarget)bg.remove();}});
+  const m=el('div',{className:'modal',style:{maxWidth:'500px'}});
+  m.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'10px',marginBottom:'14px',paddingBottom:'10px',borderBottom:'1px solid var(--mist)'}},[
+    el('div',{style:{flex:1}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900,color:'var(--earth)'}},label),
+      el('div',{style:{fontSize:'11px',color:'var(--clay)'}},events.length+' פעולות'),
+    ]),
+    el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'50%',width:'30px',height:'30px',fontSize:'16px',cursor:'pointer'},onclick:()=>bg.remove()},'✕'),
+  ]));
+  const list=el('div',{style:{maxHeight:'420px',overflowY:'auto',background:'var(--mist)',borderRadius:'8px',padding:'6px'}});
+  events.slice().reverse().forEach(c=>{
+    const u=DB.users.find(x=>x.id===c.userId);
+    const tsDate=new Date(c.ts);
+    list.appendChild(el('div',{style:{background:'var(--white)',borderRadius:'6px',padding:'8px 10px',marginBottom:'5px',fontSize:'12px',border:'1px solid rgba(232,216,184,.3)'}},[
+      el('div',{style:{fontWeight:600,color:'var(--earth)'}},c.text),
+      c.detail?el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px',fontStyle:'italic'}},c.detail):'',
+      el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'4px',display:'flex',gap:'6px',alignItems:'center'}},[
+        u?el('span',{},u.emoji+' '+u.name):el('span',{},c.userName),
+        el('span',{},'·'),
+        el('span',{},tsDate.toLocaleDateString('he-IL',{day:'numeric',month:'short'})+' '+tsDate.toTimeString().slice(0,5)),
+      ]),
+    ]));
+  });
+  m.appendChild(list);
+  bg.appendChild(m);
+  document.body.appendChild(bg);
 }
 
 function rGarden(main){
@@ -3062,36 +3440,155 @@ async function sendDailyDigest(){
   save();
 }
 
-async function sendMonthlySummary(){
+async function sendMonthlySummary(forceY,forceM){
   const now=new Date();
-  const HM2=now.getMonth(), HY2=now.getFullYear();
+  const HM2=(forceM!==undefined)?forceM:now.getMonth();
+  const HY2=(forceY!==undefined)?forceY:now.getFullYear();
   const mKey=HY2+'-'+String(HM2+1).padStart(2,'0');
-  if(DB.emailLog&&DB.emailLog['monthly-'+mKey]==='sent') return;
-  const lastDay=new Date(HY2,HM2+1,0).getDate();
-  const dayOfMonth=now.getDate();
-  if(dayOfMonth<lastDay-1&&dayOfMonth!==1) return;
+  if(forceY===undefined&&DB.emailLog&&DB.emailLog['monthly-'+mKey]==='sent') return;
+  if(forceY===undefined){
+    const lastDay=new Date(HY2,HM2+1,0).getDate();
+    const dayOfMonth=now.getDate();
+    if(dayOfMonth<lastDay-1&&dayOfMonth!==1) return;
+  }
   const mPrefix=mKey+'-';
   const monthNames=['\u05d9\u05e0\u05d5\u05d0\u05e8','\u05e4\u05d1\u05e8\u05d5\u05d0\u05e8','\u05de\u05e8\u05e5','\u05d0\u05e4\u05e8\u05d9\u05dc','\u05de\u05d0\u05d9','\u05d9\u05d5\u05e0\u05d9','\u05d9\u05d5\u05dc\u05d9','\u05d0\u05d5\u05d2\u05d5\u05e1\u05d8','\u05e1\u05e4\u05d8\u05de\u05d1\u05e8','\u05d0\u05d5\u05e7\u05d8\u05d5\u05d1\u05e8','\u05e0\u05d5\u05d1\u05de\u05d1\u05e8','\u05d3\u05e6\u05de\u05d1\u05e8'];
   const monthName=monthNames[HM2];
-  const uH={};
-  (DB.hoursLog||[]).filter(h=>h.date.startsWith(mPrefix)).forEach(h=>{if(!uH[h.uid])uH[h.uid]=0;uH[h.uid]+=ch(h.start,h.end);});
+
+  // Hours per user with days
+  const uH={},uDays={};
+  (DB.hoursLog||[]).filter(h=>h.date.startsWith(mPrefix)).forEach(h=>{
+    if(!uH[h.uid])uH[h.uid]=0;
+    uH[h.uid]+=ch(h.start,h.end);
+    if(!uDays[h.uid])uDays[h.uid]=new Set();
+    uDays[h.uid].add(h.date);
+  });
   const totalH=Object.values(uH).reduce((a,b)=>a+b,0);
+
+  // Tasks
   const monthKeys=Object.keys(DB.comps||{}).filter(k=>k.startsWith(mPrefix));
   const totalDone=monthKeys.reduce((s,k)=>s+Object.keys(DB.comps[k]).length,0);
+
+  // Maintenance
   const maintMonth=(DB.maintLog||[]).filter(l=>{const d=new Date(l.closedAt);return d.getFullYear()===HY2&&d.getMonth()===HM2;});
   const totalCost=maintMonth.reduce((s,l)=>s+(l.cost||0),0);
-  const ranked=DB.users.map(u=>({name:u.name,emoji:u.emoji,pts:gp(u.id),hrs:(uH[u.id]||0).toFixed(1),tasks:monthKeys.reduce((s,k)=>s+Object.values(DB.comps[k]||{}).filter(v=>v===u.id).length,0)})).sort((a,b)=>b.pts-a.pts);
-  const parts=['\uD83C\uDF3E \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u2014 '+monthName+' '+HY2,'---','','\u23f1 \u05e9\u05e2\u05d5\u05ea \u05e2\u05d1\u05d5\u05d3\u05d4: '+totalH.toFixed(1),''];
-  ranked.forEach(u=>parts.push('  '+u.emoji+' '+u.name+': '+u.hrs+' \u05e9\' | '+u.tasks+' \u05de\u05e9\u05d9\u05de\u05d5\u05ea | '+u.pts+' \u05e0\u05e7\u05d5\u05d3\u05d5\u05ea'));
-  parts.push('','\u2705 \u05de\u05e9\u05d9\u05de\u05d5\u05ea \u05e9\u05d1\u05d5\u05e6\u05e2\u05d5: '+totalDone,'');
-  if(maintMonth.length){parts.push('\uD83D\uDD27 \u05ea\u05d7\u05d6\u05d5\u05e7\u05d4:');maintMonth.forEach(l=>parts.push('  \u2022 '+l.title+' ('+l.closedByName+')'+(l.cost?' \u2014 '+l.cost+'\u20aa':'')));if(totalCost)parts.push('  \u05e1\u05d4"\u05db: '+totalCost+'\u20aa');parts.push('');}
+
+  // Rankings with monthly points
+  const ranked=DB.users.map(u=>{
+    const mp=gpm(u.id,HY2,HM2);
+    return {name:u.name,emoji:u.emoji,id:u.id,pts:mp.total,totalPts:gp(u.id),hrs:(uH[u.id]||0),days:(uDays[u.id]||new Set()).size,tasks:mp.tasksCount,bonusPts:mp.bonusPts};
+  }).sort((a,b)=>b.pts-a.pts);
+
+  // Activity changes log
+  const monthStart=new Date(HY2,HM2,1).getTime();
+  const monthEnd=new Date(HY2,HM2+1,0,23,59,59).getTime();
+  const changes=(DB.actLog||[]).filter(l=>l.ts>=monthStart&&l.ts<=monthEnd);
+  const changesByType={};
+  changes.forEach(c=>{if(!changesByType[c.type])changesByType[c.type]=[];changesByType[c.type].push(c);});
+
+  const parts=[];
+  parts.push('🌾 סיכום חודשי — '+monthName+' '+HY2);
+  parts.push('═══════════════════════');
+  parts.push('');
+
+  // SECTION 1: Overview
+  parts.push('📊 סקירה כללית');
+  parts.push('───────────────');
+  parts.push('⏱  שעות עבודה: '+totalH.toFixed(1)+' ש\'');
+  parts.push('✅ משימות בוצעו: '+totalDone);
+  parts.push('🔧 תחזוקות בוצעו: '+maintMonth.length+(totalCost?' (סה"כ '+totalCost+'₪)':''));
+  parts.push('📜 פעולות באתר: '+changes.length);
+  parts.push('');
+
+  // SECTION 2: Detailed Hours per Employee
+  parts.push('⏱  פירוט שעות עובדים');
+  parts.push('───────────────');
+  ranked.forEach(u=>{
+    if(u.hrs>0||u.days>0){
+      const avg=u.days>0?(u.hrs/u.days).toFixed(1):'0';
+      parts.push(u.emoji+' '+u.name);
+      parts.push('   • '+u.hrs.toFixed(1)+' שעות סה"כ');
+      parts.push('   • '+u.days+' ימי עבודה');
+      parts.push('   • ממוצע '+avg+' ש\'/יום');
+      parts.push('');
+    }
+  });
+
+  // SECTION 3: Performance ranking
+  parts.push('🏆 דירוג ביצועים');
+  parts.push('───────────────');
+  const medals=['🥇','🥈','🥉'];
+  ranked.forEach((u,i)=>{
+    const medal=medals[i]||'  '+(i+1)+'.';
+    parts.push(medal+' '+u.emoji+' '+u.name);
+    parts.push('   '+u.pts+'★ החודש | '+u.tasks+' משימות'+(u.bonusPts?' | '+u.bonusPts+' בונוס':'')+' | סה"כ '+u.totalPts+'★');
+  });
+  parts.push('');
+
+  // SECTION 4: Site changes summary
+  if(changes.length>0){
+    parts.push('📜 שינויים באתר');
+    parts.push('───────────────');
+    const typeLabels={
+      'done':'✅ משימות בוצעו',
+      'undo':'↩️ ביטולי משימות',
+      'inv':'📦 עדכוני מלאי',
+      'hours':'⏱ רישומי שעות',
+      'hours-del':'🗑 מחיקות שעות',
+      'user':'➕ עובדים נוספו',
+      'user-del':'🗑 עובדים נמחקו',
+      'user-role':'🔄 שינויי תפקיד',
+    };
+    Object.entries(typeLabels).forEach(([type,lbl])=>{
+      const cnt=(changesByType[type]||[]).length;
+      if(cnt>0)parts.push('  '+lbl+': '+cnt);
+    });
+    parts.push('');
+    // Critical changes (deletions, role changes)
+    const critical=changes.filter(c=>['user-del','user-role','hours-del'].includes(c.type));
+    if(critical.length>0){
+      parts.push('⚠️  שינויים קריטיים:');
+      critical.slice(-10).forEach(c=>{
+        const tsD=new Date(c.ts);
+        parts.push('  • '+c.text+(c.detail?' ('+c.detail+')':'')+' — '+c.userName+' ב-'+tsD.toLocaleDateString('he-IL'));
+      });
+      parts.push('');
+    }
+  }
+
+  // SECTION 5: Maintenance
+  if(maintMonth.length){
+    parts.push('🔧 תחזוקה');
+    parts.push('───────────────');
+    maintMonth.forEach(l=>parts.push('  • '+l.title+' ('+l.closedByName+')'+(l.cost?' — '+l.cost+'₪':'')));
+    if(totalCost)parts.push('  סה"כ: '+totalCost+'₪');
+    parts.push('');
+  }
+
+  // SECTION 6: Inventory shortage
   const shortage=DB.inv.filter(i=>i.qty<i.minQty);
-  if(shortage.length){parts.push('\u26a0\ufe0f \u05de\u05dc\u05d0\u05d9 \u05d7\u05e1\u05e8:');shortage.forEach(i=>parts.push('  \u2022 '+i.icon+' '+i.name));parts.push('');}
-  parts.push('\uD83C\uDF3E \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d4\u05d3\u05de\u05d4');
-  const admin=DB.users.find(u=>u.role==='\u05de\u05e0\u05d4\u05dc');
-  if(!admin||!admin.email) return;
-  const ok=await sendEmail(admin.email,admin.name,'\uD83C\uDF3E \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u2014 '+monthName+' '+HY2,parts.join('\n'));
-  if(ok){if(!DB.emailLog)DB.emailLog={};DB.emailLog['monthly-'+mKey]='sent';save();toast('\uD83C\uDF3E \u05e1\u05d9\u05db\u05d5\u05dd \u05d7\u05d5\u05d3\u05e9\u05d9 \u05e0\u05e9\u05dc\u05d7 \u2713',4000);}
+  if(shortage.length){
+    parts.push('⚠️  מלאי חסר');
+    parts.push('───────────────');
+    shortage.forEach(i=>parts.push('  • '+i.icon+' '+i.name+' (יש '+i.qty+'/'+i.minQty+' '+i.unit+')'));
+    parts.push('');
+  }
+
+  parts.push('═══════════════════════');
+  parts.push('🌾 שירת האדמה');
+
+  // Send to all managers
+  const managers=DB.users.filter(u=>u.role==='\u05de\u05e0\u05d4\u05dc'&&u.email);
+  if(managers.length===0)return;
+  const promises=managers.map(admin=>sendEmail(admin.email,admin.name,'🌾 סיכום חודשי — '+monthName+' '+HY2,parts.join('\n')));
+  const results=await Promise.all(promises);
+  const ok=results.some(r=>r);
+  if(ok){
+    if(!DB.emailLog)DB.emailLog={};
+    DB.emailLog['monthly-'+mKey]='sent';
+    save();
+    toast('🌾 סיכום חודשי נשלח ל-'+managers.length+' מנהלים \u2713',4000);
+  }
 }
 
 async function checkAndSendDailyDigest(){
