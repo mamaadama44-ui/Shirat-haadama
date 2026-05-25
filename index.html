@@ -979,7 +979,13 @@ function rInventory(main){
             el('span',{style:{color:'var(--red)',fontWeight:600}},i.minQty-i.qty+' '+i.unit),
           ]))
         ]):'',
-        supItems.length?el('div',{style:{fontSize:'12px',color:'var(--clay)'}},'פריטים: '+supItems.map(i=>i.icon+i.name).join(' · ')):el('div',{style:{fontSize:'12px',color:'var(--clay)',fontStyle:'italic'}},'אין פריטים מוגדרים'),
+        supItems.length?el('div',{style:{marginTop:'6px'}},[
+          ...supItems.map(i=>el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'4px 0',fontSize:'12px',borderBottom:'1px solid var(--mist)'}},[
+            el('span',{style:{fontSize:'16px'}},i.icon),
+            el('span',{style:{flex:1}},i.name),
+            el('span',{style:{color:i.qty<i.minQty?'var(--red)':'var(--clay)',fontSize:'11px'}},i.qty+' '+i.unit+(i.qty<i.minQty?' ⚠️':'')),
+          ]))
+        ]):el('div',{style:{fontSize:'12px',color:'var(--clay)',fontStyle:'italic',marginTop:'4px'}},'אין פריטים — לחץ ✏️ לשיוך מוצרים'),
         sup.notes?el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'4px',fontStyle:'italic'}},sup.notes):'',
         shortageItems.length?btn('\uD83D\uDCE7 שלח מייל הזמנה','var(--red)',async ()=>{
           const lines=['\u05d1\u05e7\u05e9\u05ea \u05d4\u05d6\u05de\u05e0\u05d4 \u05de\u05d0\u05ea \u05e9\u05d9\u05e8\u05ea \u05d4\u05d0\u05d3\u05de\u05d4:',''];
