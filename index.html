@@ -617,6 +617,28 @@ function editTask(t){
     if(!date){toast('קודם הוסף תאריך');return;}
     addTaskToCalendar({title:titleInp.value.trim()||t.title,date,time:timeInp.value,id:t.id});
   },{width:'100%',marginTop:'6px',color:'var(--earth)',border:'1px solid var(--earth)'}));
+  // AI breakdown button - opens external AI with task context
+  box.appendChild(btn('🧩 פרק לי את המשימה עם AI','rgba(255,232,214,.5)',()=>{
+    const title=titleInp.value.trim()||t.title;
+    if(!title){toast('קודם הוסף כותרת');return;}
+    const areaName=AREAS[areaS.value]?.l||areaS.value;
+    const priName=PRI[priS.value]?.l||priS.value;
+    const dueDate=dueDateInp.value||dateInp.value;
+    const u=uidS.value?gu(uidS.value):null;
+    const prompt=`אני בחווה שירת האדמה. יש לי משימה שאני רוצה לפרק לתת-משימות מעשיות.
+
+המשימה: "${title}"
+אזור: ${areaName}
+עדיפות: ${priName}
+${dueDate?'יעד: '+dueDate:''}
+${u?'אחראי: '+u.name:''}
+
+תפרקי את המשימה ל-3-5 תת-משימות מעשיות וקצרות. הצגיני כרשימה ממוספרת, ואחרי זה תוסיפי:
+- מה ההכנות שצריך (כלים, חומרים, אנשים)
+- הסדר המומלץ של ביצוע
+- קשיים אפשריים שכדאי לדעת מראש`;
+    openInAI(prompt);
+  },{width:'100%',marginTop:'6px',color:'#5a3010',border:'1px solid #FFE8D6'}));
   box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
   bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
   document.body.appendChild(bg);
@@ -3202,6 +3224,35 @@ function editProject(p){
     if(isNew)DB.projects.push(p);
     save();bg.remove();toast('נשמר \u2713');renderTab();
   },{width:'100%',marginTop:'10px'}));
+  // AI breakdown button - asks AI to suggest subtasks for the project
+  box.appendChild(btn('🧩 פרק לי את הפרויקט עם AI','rgba(255,232,214,.5)',()=>{
+    const title=titleInp.value.trim();
+    if(!title){toast('קודם הוסף שם לפרויקט');return;}
+    const desc=descInp.value.trim();
+    const duration=startInp.value&&endInp.value?'משך: '+startInp.value+' עד '+endInp.value:'';
+    const existingItems=localItems.filter(i=>i.title.trim()).map(i=>i.title);
+    const prompt=`אני בחווה שירת האדמה. אני רוצה לתכנן פרויקט חדש ולפרק אותו לתת-משימות.
+
+הפרויקט: "${title}"
+${desc?'תיאור: '+desc:''}
+${duration||''}
+${existingItems.length?'תת-משימות שכבר חשבתי עליהן: '+existingItems.join(', '):''}
+
+תעזרי לי בכל הדברים הבאים:
+
+1. **תת-משימות מפורטות** - תני 5-8 תת-משימות מעשיות וקצרות. כל אחת במשפט אחד.
+
+2. **חומרים וכלים נדרשים** - מה אני צריך לרכוש/להכין מראש?
+
+3. **לוח זמנים מומלץ** - באיזה סדר לבצע, וכמה זמן כל שלב?
+
+4. **קשיים שכדאי לדעת מראש** - מה עלול להשתבש?
+
+5. **שאלות שאני צריך לחשוב עליהן** - דברים שלא חשבתי עליהם
+
+הצגיני כל סעיף עם כותרת ברורה.`;
+    openInAI(prompt);
+  },{width:'100%',marginTop:'6px',color:'#5a3010',border:'1px solid #FFE8D6'}));
   box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
   bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
   document.body.appendChild(bg);
