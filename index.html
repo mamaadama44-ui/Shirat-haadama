@@ -1460,7 +1460,104 @@ ${ME.name} וצוות שירת האדמה 🌱`;
   sumCard.appendChild(sumBtns);
   main.appendChild(sumCard);
 
-  // ============ SECTION 5: ASK ANYTHING ============
+  // ============ SECTION 5: TASK BREAKDOWN ============
+  const breakCard=el('div',{className:'card',style:{padding:'14px',marginBottom:'10px',border:'1px solid var(--mist)'}});
+  breakCard.appendChild(el('div',{style:{display:'flex',gap:'10px',alignItems:'center',marginBottom:'10px'}},[
+    el('div',{style:{width:'36px',height:'36px',borderRadius:'10px',background:'#FFE8D6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px',flexShrink:0}},'🧩'),
+    el('div',{style:{flex:1}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',color:'var(--earth)'}},'פירוק משימה'),
+      el('div',{style:{fontSize:'10px',color:'var(--clay)'}},'פרק משימה גדולה לתת-משימות עם AI'),
+    ]),
+  ]));
+
+  // Mode toggle: existing task vs free text
+  let breakMode='existing'; // 'existing' or 'free'
+  const modeRow=el('div',{style:{display:'flex',gap:'4px',marginBottom:'10px',background:'var(--mist)',borderRadius:'8px',padding:'3px'}});
+  const modeBtn=(val,label)=>{
+    const b=el('button',{style:{flex:1,border:'none',background:'transparent',padding:'7px',borderRadius:'6px',fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',color:'var(--clay)'}},label);
+    if(val===breakMode){b.style.background='var(--white)';b.style.color='var(--earth)';b.style.boxShadow='0 1px 3px rgba(0,0,0,.1)';}
+    b.onclick=()=>{breakMode=val;renderBreakContent();};
+    return b;
+  };
+
+  const breakContent=el('div',{});
+  const renderBreakContent=()=>{
+    modeRow.innerHTML='';
+    modeRow.appendChild(modeBtn('existing','📋 משימה קיימת'));
+    modeRow.appendChild(modeBtn('free','✏️ טקסט חופשי'));
+    breakContent.innerHTML='';
+
+    if(breakMode==='existing'){
+      // Show open one-off tasks list
+      const openTasks=DB.oT.filter(t=>!t.done);
+      if(openTasks.length===0){
+        breakContent.appendChild(el('div',{style:{textAlign:'center',padding:'14px',color:'var(--clay)',fontSize:'12px',background:'var(--mist)',borderRadius:'8px'}},'אין משימות חד-פעמיות פתוחות'));
+        return;
+      }
+      let selTask=openTasks[0].id;
+      const taskSel=fsel(openTasks.map(t=>[t.id,t.title+(t.due?' (עד '+fd(t.due)+')':'')]),selTask,v=>{selTask=v;});
+      breakContent.appendChild(el('div',{className:'flab'},'בחרי משימה לפירוק'));
+      breakContent.appendChild(taskSel);
+
+      const buildPrompt=(parts)=>{
+        const task=openTasks.find(t=>t.id===selTask);
+        if(!task)return '';
+        const areaName=AREAS[task.area]?.l||task.area||'';
+        return `אני בחווה שירת האדמה. יש לי משימה גדולה שאני רוצה לפרק לתת-משימות מעשיות.
+
+המשימה: "${task.title}"
+תחום: ${areaName}
+${task.due?'יעד: '+task.due:''}
+${task.desc?'תיאור: '+task.desc:''}
+
+תפרקי את המשימה ל-${parts} תת-משימות מעשיות וקצרות (כל תת-משימה במשפט אחד). הצגיני את התשובה כרשימה ממוספרת. אחרי הרשימה, הוסיפי הערה קצרה על הסדר המומלץ של ביצוע.`;
+      };
+
+      breakContent.appendChild(el('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'6px',marginTop:'8px'}},[
+        el('button',{style:{background:'#FFE8D6',border:'none',padding:'10px 8px',borderRadius:'8px',fontSize:'11px',color:'#5a3010',cursor:'pointer',fontWeight:600,fontFamily:'inherit'},onclick:()=>{openInAI(buildPrompt(3));}},'🧩 פרק ל-3 חלקים'),
+        el('button',{style:{background:'#FFE8D6',border:'none',padding:'10px 8px',borderRadius:'8px',fontSize:'11px',color:'#5a3010',cursor:'pointer',fontWeight:600,fontFamily:'inherit'},onclick:()=>{openInAI(buildPrompt(5));}},'🧩 פרק ל-5 חלקים'),
+        el('button',{style:{background:'rgba(232,184,75,.15)',border:'1px solid var(--gold)',padding:'10px 8px',borderRadius:'8px',fontSize:'11px',color:'var(--earth)',cursor:'pointer',fontWeight:600,fontFamily:'inherit',gridColumn:'span 2'},onclick:()=>{
+          const task=openTasks.find(t=>t.id===selTask);
+          if(!task){toast('בחרי משימה');return;}
+          openInAI(`אני בחווה שירת האדמה. תעזרי לי לתכנן את המשימה "${task.title}" - מה הצעדים? מה ההכנות? אילו חומרים נדרשים? מה הקשיים שעלולים להופיע?`);
+        }},'✨ עזרה מקיפה בתכנון המשימה'),
+      ]));
+    } else {
+      // Free text mode
+      const freeInput=el('textarea',{className:'finp',style:{width:'100%',minHeight:'70px',padding:'10px',fontSize:'13px',marginBottom:'8px',resize:'vertical'},placeholder:'תארי משימה, פרויקט או יעד. לדוגמה: "להכין סדנת הכנת ריבה לקיץ"'});
+      breakContent.appendChild(el('div',{className:'flab'},'מה את רוצה לפרק?'));
+      breakContent.appendChild(freeInput);
+
+      const buildFreePrompt=(parts)=>{
+        return `אני בחווה שירת האדמה. תעזרי לי לפרק את המשימה הבאה ל-${parts} תת-משימות מעשיות:
+
+"${freeInput.value.trim()}"
+
+הצגיני את התשובה כרשימה ממוספרת קצרה וברורה, ואחרי זה תוסיפי המלצה על הסדר המומלץ.`;
+      };
+
+      breakContent.appendChild(el('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'6px'}},[
+        el('button',{style:{background:'#FFE8D6',border:'none',padding:'10px 8px',borderRadius:'8px',fontSize:'11px',color:'#5a3010',cursor:'pointer',fontWeight:600,fontFamily:'inherit'},onclick:()=>{
+          if(!freeInput.value.trim()){toast('כתבי משימה');return;}
+          openInAI(buildFreePrompt(3));
+        }},'🧩 פרק ל-3 חלקים'),
+        el('button',{style:{background:'#FFE8D6',border:'none',padding:'10px 8px',borderRadius:'8px',fontSize:'11px',color:'#5a3010',cursor:'pointer',fontWeight:600,fontFamily:'inherit'},onclick:()=>{
+          if(!freeInput.value.trim()){toast('כתבי משימה');return;}
+          openInAI(buildFreePrompt(5));
+        }},'🧩 פרק ל-5 חלקים'),
+      ]));
+    }
+  };
+
+  breakCard.appendChild(modeRow);
+  breakCard.appendChild(breakContent);
+  renderBreakContent();
+
+  breakCard.appendChild(el('div',{style:{fontSize:'10px',color:'var(--clay)',textAlign:'center',marginTop:'8px',fontStyle:'italic',padding:'6px',background:'rgba(255,232,214,.3)',borderRadius:'6px'}},'💡 ה-AI יפתח עם רשימת תת-המשימות. אפשר להוסיף אותן ידנית כפרויקט!'));
+
+  main.appendChild(breakCard);
+
+  // ============ SECTION 6: ASK ANYTHING ============
   const askCard=el('div',{style:{background:'linear-gradient(135deg,#3d2510,#5a3818)',borderRadius:'14px',padding:'14px',marginBottom:'10px',color:'var(--gold)'}});
   askCard.appendChild(el('div',{style:{textAlign:'center',marginBottom:'10px'}},[
     el('div',{style:{fontSize:'24px',marginBottom:'4px'}},'💬'),
@@ -3029,9 +3126,10 @@ function editProject(p){
 
   box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},isNew?'פרויקט חדש':'עריכת פרויקט'));
   box.appendChild(el('div',{className:'flab'},'שם'));box.appendChild(titleInp);
-  // Supplier selector
-  const supSel=fsel([['','ללא ספק'],...(DB.suppliers||[]).map(s=>[s.id,s.name])],item.supplierId||'');
-  box.appendChild(el('div',{className:'flab'},'ספק מספק'));box.appendChild(supSel);
+  // Supplier selector (project-level)
+  let selSupplier=p.supplierId||'';
+  const supSel=fsel([['','ללא ספק'],...(DB.suppliers||[]).map(s=>[s.id,s.name])],selSupplier,v=>{selSupplier=v;});
+  box.appendChild(el('div',{className:'flab'},'ספק'));box.appendChild(supSel);
   box.appendChild(el('div',{className:'flab'},'תיאור'));box.appendChild(descInp);
   const dr=el('div',{className:'fgrid'});
   dr.appendChild(el('div',{},[el('div',{className:'flab'},'התחלה'),startInp]));
@@ -3047,7 +3145,7 @@ function editProject(p){
   box.appendChild(itemsContainer);
   box.appendChild(btn('שמור פרויקט','var(--sage)',()=>{
     const title=titleInp.value.trim();if(!title){toast('חסר שם');return;}
-    p.title=title;p.color=selColor;p.status=selStatus;
+    p.title=title;p.color=selColor;p.status=selStatus;p.supplierId=selSupplier;
     p.desc=descInp.value.trim();p.startDate=startInp.value;p.endDate=endInp.value;
     p.items=localItems.filter(i=>i.title.trim());
     if(isNew)DB.projects.push(p);
