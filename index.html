@@ -533,15 +533,6 @@ function toggle(tid){
   save();renderTab();
 }
 
-function noteTask(tid){
-  const t=at().find(x=>x.id===tid);if(!t)return;
-  const notes=DB.taskNotes[tid]||[];
-  let html=`<div style="font-family:'Frank Ruhl Libre',serif;font-size:16px;font-weight:700;margin-bottom:10px">${t.title}</div>`;
-  notes.slice(-5).forEach(n=>{html+=`<div style="background:var(--mist);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px"><div style="font-weight:600;color:var(--clay)">${n.name} · ${new Date(n.ts).toLocaleDateString('he-IL')}</div><div style="margin-top:3px">${n.text}</div></div>`;});
-  html+=`<textarea id="nt" placeholder="הוסף הערה..." style="width:100%;border:1.5px solid var(--parch);border-radius:8px;padding:9px;font-size:13px;font-family:inherit;margin-top:8px;outline:none;resize:vertical" rows="3"></textarea><button onclick="(()=>{const v=document.getElementById('nt').value.trim();if(!v)return;if(!DB.taskNotes['${tid}'])DB.taskNotes['${tid}']=[];DB.taskNotes['${tid}'].push({ts:Date.now(),uid:ME.id,name:ME.name,text:v});save();document.querySelector('.modal-bg').remove();toast('הערה נשמרה');renderTab();})()" style="width:100%;padding:10px;background:var(--sage);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;margin-top:8px;font-family:inherit">שמור</button>`;
-  modal(html);
-}
-
 function mkRow(t,done,todayComps,showTime){
   const assignedUser=t.uid?gu(t.uid):null;
   const whoDidIt=todayComps[t.id]?gu(todayComps[t.id]):null;
@@ -1668,42 +1659,6 @@ ${task.desc?'תיאור: '+task.desc:''}
 function rTasks(main){
   const today=tdk();const todayComps=DB.comps[today]||{};
   // Filter tabs
-  // Add task button (manager)
-  if(ME.role==='מנהל'){
-    main.appendChild(btn('➕ הוסף משימה','var(--red)',()=>{
-      const bg2=el('div',{className:'modal-bg'});
-      const box2=el('div',{className:'modal'});
-      box2.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'➕ משימה חדשה'));
-      const ti2=finp({placeholder:'תיאור המשימה'});
-      let qArea='animals',qPri='medium',qUid='',qRec='once';
-      const dRow=el('div',{className:'fgrid',style:{display:'grid'}});
-      const qDate=finp({type:'date'});const qTime=finp({type:'time',value:'08:00'});
-      dRow.appendChild(el('div',{},[el('div',{className:'flab'},'תאריך'),qDate]));
-      dRow.appendChild(el('div',{},[el('div',{className:'flab'},'שעה'),qTime]));
-      const recSel=fsel([['once','חד פעמית'],['daily','יומי'],['weekly','שבועי'],['monthly','חודשי']],'once',v=>{qRec=v;});
-      box2.appendChild(el('div',{className:'flab'},'כותרת'));box2.appendChild(ti2);
-      box2.appendChild(el('div',{className:'fgrid'},[
-        el('div',{},[el('div',{className:'flab'},'אזור'),fsel(Object.entries(AREAS).map(([k,v])=>[k,v.l]),'animals',v=>{qArea=v;})]),
-        el('div',{},[el('div',{className:'flab'},'עדיפות'),fsel(Object.entries(PRI).map(([k,v])=>[k,v.l]),'medium',v=>{qPri=v;})]),
-      ]));
-      box2.appendChild(el('div',{className:'flab'},'תדירות'));box2.appendChild(recSel);
-      box2.appendChild(dRow);
-      box2.appendChild(el('div',{className:'flab'},'משויך ל'));
-      box2.appendChild(fsel([['','ללא שיוך'],...DB.users.map(u=>[u.id,u.emoji+' '+u.name])],'',v=>{qUid=v;}));
-      box2.appendChild(btn('הוסף','var(--sage)',()=>{
-        const title=ti2.value.trim();if(!title){toast('חסרה כותרת');return;}
-        if(qRec==='once'){
-          DB.oT.push({id:'o'+Date.now(),title,area:qArea,pri:qPri,uid:qUid,scheduledDate:qDate.value,scheduledTime:qTime.value,due:qDate.value,done:false,doneAt:null,createdBy:ME.id});
-        } else {
-          DB.rT.push({id:'r'+Date.now(),title,area:qArea,pri:qPri,rec:qRec,uid:qUid,createdBy:ME.id});
-        }
-        save();bg2.remove();toast('משימה נוספה ✓');renderTab();
-      },{width:'100%',marginTop:'10px'}));
-      box2.appendChild(btn('ביטול','var(--mist)',()=>bg2.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
-      bg2.appendChild(box2);bg2.addEventListener('click',e=>{if(e.target===bg2)bg2.remove();});
-      document.body.appendChild(bg2);
-    },{width:'100%',marginBottom:'10px'}));
-  }
 
   const filterCard=card([
     el('div',{className:'chips'},[
@@ -2524,109 +2479,6 @@ function editEquip(e){
   bg.appendChild(box);bg.addEventListener('click',ev=>{if(ev.target===bg)bg.remove();});
   document.body.appendChild(bg);
 }
-
-function editEquipCond(e){
-  const bg=el('div',{className:'modal-bg'});
-  const box=el('div',{className:'modal'});
-  box.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700,marginBottom:'12px'}},'🔧 עדכון מצב: '+e.name));
-  const condDisplay=el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'36px',fontWeight:900,textAlign:'center',color:e.cond<50?'var(--red)':e.cond<70?'var(--straw)':'var(--sage)',margin:'8px 0'}},e.cond+'%');
-  const slider=el('input',{type:'range',min:'0',max:'100',value:String(e.cond),style:{width:'100%',margin:'6px 0'}});
-  slider.oninput=()=>{condDisplay.textContent=slider.value+'%';condDisplay.style.color=slider.value<50?'var(--red)':slider.value<70?'var(--straw)':'var(--sage)';};
-  box.appendChild(condDisplay);box.appendChild(slider);
-  // Quick buttons
-  const qRow=el('div',{style:{display:'flex',gap:'5px',marginBottom:'10px'}});
-  [[-20,'🔴 -20%'],[-10,'🟠 -10%'],[10,'🟢 +10%'],[20,'💚 +20%']].forEach(([v,l])=>{
-    const b=el('button',{style:{flex:1,padding:'6px 2px',fontSize:'11px',background:'var(--mist)',border:'none',borderRadius:'6px',cursor:'pointer',fontFamily:'inherit'}},l);
-    b.onclick=()=>{const n=Math.min(100,Math.max(0,parseInt(slider.value)+v));slider.value=n;condDisplay.textContent=n+'%';condDisplay.style.color=n<50?'var(--red)':n<70?'var(--straw)':'var(--sage)';};
-    qRow.appendChild(b);
-  });
-  const okBtn=el('button',{style:{width:'100%',padding:'8px',background:'#e8f5e4',border:'1px solid var(--sage)',borderRadius:'7px',cursor:'pointer',fontFamily:'inherit',fontWeight:700,color:'var(--sage)',marginBottom:'8px'}},'✅ תקין לחלוטין (100%)');
-  okBtn.onclick=()=>{slider.value=100;condDisplay.textContent='100%';condDisplay.style.color='var(--sage)';};
-  box.appendChild(qRow);box.appendChild(okBtn);
-  const noteInp=fta({placeholder:'הערת תיקון (אופציונלי)',style:{minHeight:'50px'}});
-  box.appendChild(el('div',{className:'flab'},'הערה'));box.appendChild(noteInp);
-  box.appendChild(btn('שמור מצב','var(--sage)',()=>{
-    const oldCond=e.cond;const newCond=parseInt(slider.value);
-    e.cond=newCond;
-    if(noteInp.value.trim()||newCond!==oldCond){
-      if(!e.repairLog)e.repairLog=[];
-      e.repairLog.push({ts:Date.now(),note:noteInp.value.trim(),condBefore:oldCond,condAfter:newCond,by:ME.id,byName:ME.name});
-    }
-    save();bg.remove();toast('מצב עודכן ✓');renderTab();
-  },{width:'100%',marginTop:'6px'}));
-  box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
-  bg.appendChild(box);bg.addEventListener('click',e2=>{if(e2.target===bg)bg.remove();});
-  document.body.appendChild(bg);
-}
-
-function rHours(main){
-  main.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}},[
-    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'16px',fontWeight:900}},`⏱ שעות — ${MONTHS[HM]} ${HY}`),
-    el('div',{style:{display:'flex',gap:'6px'}},[
-      el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer'},onclick:()=>{HM--;if(HM<0){HM=11;HY--;}renderTab();}},'◀'),
-      el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'6px',padding:'5px 10px',cursor:'pointer'},onclick:()=>{HM++;if(HM>11){HM=0;HY++;}renderTab();}},'▶'),
-    ])
-  ]));
-  const mPrefix=`${HY}-${String(HM+1).padStart(2,'0')}`;
-  const myLogs=(DB.hoursLog||[]).filter(h=>h.uid===ME.id&&h.date.startsWith(mPrefix));
-  const allUserLogs=uid=>(DB.hoursLog||[]).filter(h=>h.uid===uid&&h.date.startsWith(mPrefix));
-  const totalH=uid=>allUserLogs(uid).reduce((s,h)=>s+ch(h.start,h.end),0);
-  if(ME.role!=='מנהל'){
-    const myH=totalH(ME.id);
-    main.appendChild(card([
-      el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},[
-        el('div',{style:{fontWeight:700}},'הסיכום שלי'),
-        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'22px',fontWeight:900,color:'var(--sage)'}},myH.toFixed(1)+" ש'")
-      ]),
-      pbar(Math.min(myH/160*100,100),'var(--sage)',8)
-    ]));
-  }
-  const logCard=card([el('div',{className:'card-t'},'➕ רישום שעות')]);
-  const di=finp({type:'date',value:tdk()});
-  const si=finp({type:'time',value:'08:00'});
-  const ei2=finp({type:'time',value:'16:00'});
-  const nt2=fta({placeholder:'הערה (אופציונלי)',style:{minHeight:'40px'}});
-  const sv=btn('שמור שעות','var(--sage)',()=>{
-    if(!di.value||!si.value||!ei2.value){toast('מלא תאריך ושעות');return;}
-    const hrs=ch(si.value,ei2.value);
-    if(hrs<=0){toast('שעת סיום לפני שעת התחלה');return;}
-    if(!DB.hoursLog)DB.hoursLog=[];
-    DB.hoursLog.push({id:'h'+Date.now(),uid:ME.id,date:di.value,start:si.value,end:ei2.value,hrs,note:nt2.value.trim()});
-    save();toast(`+${hrs.toFixed(1)} שעות נרשמו ✓`);al('hours','שעות עבודה: '+hrs.toFixed(1),`${si.value}–${ei2.value}`);renderTab();
-  },{width:'100%',marginTop:'8px'});
-  logCard.appendChild(el('div',{className:'fgrid'},[el('div',{},[el('div',{className:'flab'},'תאריך'),di]),el('div',{},[el('div',{className:'flab'},'התחלה'),si])]));
-  logCard.appendChild(el('div',{style:{marginTop:'8px'}},[el('div',{className:'flab'},'סיום'),ei2]));
-  logCard.appendChild(el('div',{style:{marginTop:'8px'}},[el('div',{className:'flab'},'הערה'),nt2]));
-  logCard.appendChild(sv);main.appendChild(logCard);
-  if(myLogs.length){
-    const lc=card([el('div',{className:'card-t'},'הרשומות שלי החודש')]);
-    myLogs.slice().reverse().forEach(h=>{
-      lc.appendChild(el('div',{className:'h-row'},[
-        el('span',{style:{flex:1,fontWeight:600}},fd(h.date)),
-        el('span',{style:{color:'var(--clay)'}},`${h.start}–${h.end}`),
-        el('span',{style:{fontWeight:700,color:'var(--sage)',marginRight:'6px'}},ch(h.start,h.end).toFixed(1)+" ש'"),
-        el('button',{style:{background:'none',border:'none',color:'#ccc',cursor:'pointer',fontSize:'14px'},onclick:()=>{if(confirm('למחוק רשומה זו?')){DB.hoursLog=DB.hoursLog.filter(x=>x.id!==h.id);save();renderTab();}}},'🗑'),
-      ]));
-    });
-    main.appendChild(lc);
-  }
-  if(ME.role==='מנהל'){
-    const allC=card([el('div',{className:'card-t'},`סיכום עובדים — ${MONTHS[HM]}`)]);
-    DB.users.forEach(u=>{
-      const hrs=totalH(u.id);
-      const pct=Math.min(hrs/160*100,100);
-      const r=el('div',{style:{marginBottom:'10px'}});
-      r.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'13px',marginBottom:'3px'}},[
-        el('span',{},`${u.emoji} ${u.name}`),
-        el('span',{style:{fontWeight:700,color:pct>=100?'var(--sage)':hrs>80?'var(--straw)':'var(--clay)'}},`${hrs.toFixed(1)} / 160 ש'`)
-      ]));
-      r.appendChild(pbar(pct,pct>=100?'var(--sage)':pct>50?'var(--straw)':'var(--red)',8));
-      allC.appendChild(r);
-    });
-    main.appendChild(allC);
-  }
-}
-
 
 function rTeam(main){
   const isAdmin=ME.role==='\u05de\u05e0\u05d4\u05dc';
@@ -4395,14 +4247,12 @@ if('serviceWorker' in navigator && location.protocol !== 'file:'){
   window.addEventListener('load', async () => {
     try {
       const reg = await navigator.serviceWorker.register('service-worker.js');
-      console.log('[PWA] Service Worker registered:', reg.scope);
       // Listen for updates
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if(newWorker){
           newWorker.addEventListener('statechange', () => {
             if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
-              console.log('[PWA] New version available');
               // Show toast notifying about update (only if app is loaded)
               setTimeout(() => {
                 const t = document.getElementById('toast');
@@ -4426,13 +4276,11 @@ if('serviceWorker' in navigator && location.protocol !== 'file:'){
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  console.log('[PWA] Install prompt available');
   // Show install button if user is logged in
   setTimeout(showInstallButton, 1500);
 });
 
 window.addEventListener('appinstalled', () => {
-  console.log('[PWA] App installed');
   deferredInstallPrompt = null;
   const btn = document.getElementById('pwa-install-btn');
   if(btn) btn.remove();
@@ -4485,7 +4333,6 @@ function showInstallButton(){
       // Android: trigger native install prompt
       deferredInstallPrompt.prompt();
       const { outcome } = await deferredInstallPrompt.userChoice;
-      console.log('[PWA] User choice:', outcome);
       deferredInstallPrompt = null;
       btn.remove();
     } else if(isIOS()){
