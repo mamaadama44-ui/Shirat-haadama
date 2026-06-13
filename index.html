@@ -880,89 +880,84 @@ function rHome(main){
   weekCard.appendChild(weekRow);
   main.appendChild(weekCard);
 
-  // ============ HIGH PRIORITY TASKS TODAY ============
-  // Build list of tasks for today
-  const todayTasks=[];
-  // Recurring tasks
-  at().forEach(t=>{
-    if(t.done)return; // skip completed once-off
-    if(t.rec==='daily'){
-      todayTasks.push({...t,_done:!!todayComps[t.id],_doneBy:todayComps[t.id]});
-    } else if(t.rec==='weekly'){
-      // Show on the day the task was usually done or all week if never done
-      todayTasks.push({...t,_done:!!todayComps[t.id],_doneBy:todayComps[t.id]});
-    } else if(!t.rec){
-      // Once-off task: show if not done
-      if(!t.done){
-        const due=t.due;
-        const isOverdue=due&&due<today;
-        const isToday=due===today;
-        const isUpcoming=due&&due<=tdk(); // due today or earlier
-        todayTasks.push({...t,_done:false,_overdue:isOverdue,_today:isToday});
-      }
+  // ============ TODAY'S TASKS - SPLIT: RECURRING vs ONE-TIME ============
+  // Build today's recurring tasks (DB.rT, filtered by frequency)
+  const todayDow=new Date().getDay(); // 0=Sunday
+  const recToday=DB.rT.filter(t=>{
+    if(t.rec==='daily')return true;
+    if(t.rec==='weekly')return true; // show all week
+    if(t.rec==='monthly')return new Date().getDate()===1; // first of month
+    if(t.rec==='specific')return t.scheduledDate===today;
+    return false;
+  }).map(t=>({...t,_done:!!todayComps[t.id],_doneBy:todayComps[t.id],_kind:'rec'}));
+
+  // Once-off tasks: open + due today/before
+  const onceToday=DB.oT.filter(t=>!t.done&&(!t.due||t.due<=today)).map(t=>({
+    ...t,_overdue:t.due&&t.due<today,_today:t.due===today,_kind:'once'
+  }));
+
+  // Render section helper
+  const renderTaskList=(tasks,opts)=>{
+    const card=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'12px 14px',marginBottom:'10px',border:'1px solid var(--mist)',boxShadow:'0 2px 8px rgba(26,18,5,.06)'}});
+    const doneCount=tasks.filter(t=>t._done).length;
+    card.appendChild(el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:tasks.length?'8px':'0'}},[
+      el('div',{style:{display:'flex',alignItems:'center',gap:'6px'}},[
+        el('span',{style:{fontSize:'18px'}},opts.emoji),
+        el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',color:opts.color}},opts.title),
+      ]),
+      tasks.length?el('div',{style:{fontSize:'11px',color:'var(--clay)',background:'var(--mist)',padding:'2px 8px',borderRadius:'10px'}},doneCount+'/'+tasks.length):'',
+    ]));
+    if(tasks.length===0){
+      card.appendChild(el('div',{style:{textAlign:'center',padding:'10px',color:'var(--clay)',fontSize:'12px'}},opts.emptyMsg));
+      return card;
     }
-  });
-
-  // Sort: undone first, then high priority, then overdue first
-  const sortedTasks=todayTasks.sort((a,b)=>{
-    if(a._done!==b._done)return a._done?1:-1;
-    if(a._overdue!==b._overdue)return a._overdue?-1:1;
-    const priOrder={high:0,medium:1,low:2};
-    return (priOrder[a.pri]||1)-(priOrder[b.pri]||1);
-  });
-
-  const highPriUndone=sortedTasks.filter(t=>!t._done&&t.pri==='high').slice(0,5);
-  const totalUndone=sortedTasks.filter(t=>!t._done).length;
-  const totalDone=sortedTasks.filter(t=>t._done).length;
-
-  const tasksCard=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'14px',marginBottom:'14px',border:'1px solid var(--mist)',boxShadow:'0 2px 8px rgba(26,18,5,.06)'}});
-  tasksCard.appendChild(el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}},[
-    el('div',{style:{display:'flex',alignItems:'center',gap:'6px'}},[
-      el('span',{style:{fontSize:'18px'}},'🔥'),
-      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px'}},'משימות חשובות היום'),
-    ]),
-    el('div',{style:{fontSize:'11px',color:'var(--clay)',background:'var(--mist)',padding:'2px 8px',borderRadius:'10px'}},totalDone+'/'+(totalDone+totalUndone)),
-  ]));
-
-  if(highPriUndone.length===0){
-    if(totalDone>0&&totalUndone===0){
-      tasksCard.appendChild(el('div',{style:{textAlign:'center',padding:'14px',color:'var(--sage)'}},[
-        el('div',{style:{fontSize:'30px',marginBottom:'4px'}},'🎉'),
-        el('div',{style:{fontSize:'13px',fontWeight:700}},'כל המשימות בוצעו!'),
-        el('div',{style:{fontSize:'11px',color:'var(--clay)',marginTop:'2px'}},'עבודה מצוינת היום'),
-      ]));
-    } else {
-      tasksCard.appendChild(el('div',{style:{textAlign:'center',padding:'14px',color:'var(--clay)',fontSize:'12px'}},'אין משימות בעדיפות גבוהה ממתינות'));
-    }
-  } else {
-    highPriUndone.forEach(t=>{
+    // Show up to 5 first (undone preferred)
+    const sorted=tasks.sort((a,b)=>{
+      if(a._done!==b._done)return a._done?1:-1;
+      if(a._overdue!==b._overdue)return a._overdue?-1:1;
+      const priOrder={high:0,medium:1,low:2};
+      return (priOrder[a.pri]||1)-(priOrder[b.pri]||1);
+    });
+    const showList=sorted.slice(0,5);
+    showList.forEach(t=>{
       const u=t.uid?gu(t.uid):null;
-      const row=el('div',{style:{display:'flex',gap:'10px',alignItems:'center',padding:'10px 4px',borderBottom:'1px solid var(--mist)',cursor:'pointer'},onclick:()=>{
-        // Quick complete
+      const priCol=PRI[t.pri]?.c||'var(--clay)';
+      const priPts=PRI[t.pri]?.pts||5;
+      const row=el('div',{style:{display:'flex',gap:'10px',alignItems:'center',padding:'8px 4px',borderBottom:'1px solid var(--mist)',cursor:'pointer',opacity:t._done?.5:1},onclick:()=>{
+        if(t._done){return;}
         if(!DB.comps[today])DB.comps[today]={};
         DB.comps[today][t.id]=ME.id;
+        if(t._kind==='once'){
+          const ot=DB.oT.find(x=>x.id===t.id);
+          if(ot){ot.done=true;ot.doneAt=Date.now();}
+        }
         al('done','בוצע: '+t.title);
-        save();toast('+'+(PRI[t.pri]?.pts||5)+'★ משימה בוצעה!',2500);renderTab();
+        save();toast('+'+priPts+'★ משימה בוצעה!',2200);renderTab();
       }});
-      row.appendChild(el('div',{style:{width:'28px',height:'28px',borderRadius:'8px',background:PRI[t.pri].c+'20',border:'2px solid '+PRI[t.pri].c,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .2s'}},[
-        el('span',{style:{fontSize:'14px',color:PRI[t.pri].c,fontWeight:900}},'!'),
-      ]));
+      row.appendChild(el('div',{style:{width:'22px',height:'22px',borderRadius:'7px',background:t._done?'var(--sage)':priCol+'18',border:'2px solid '+(t._done?'var(--sage)':priCol),display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:'12px',fontWeight:900,color:t._done?'#fff':priCol}},t._done?'✓':(t.pri==='high'?'!':'')));
       row.appendChild(el('div',{style:{flex:1,minWidth:0}},[
-        el('div',{style:{fontWeight:600,fontSize:'13px',color:'var(--earth)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},t.title),
+        el('div',{style:{fontWeight:600,fontSize:'13px',color:'var(--earth)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textDecoration:t._done?'line-through':'none'}},t.title),
         el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'1px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},[
-          el('span',{style:{background:PRI[t.pri].c+'15',color:PRI[t.pri].c,padding:'1px 6px',borderRadius:'6px',fontWeight:700}},'+'+(PRI[t.pri].pts)+'★'),
+          AREAS[t.area]?el('span',{},AREAS[t.area].l):'',
           u?el('span',{},u.emoji+' '+u.name):'',
           t._overdue?el('span',{style:{color:'var(--red)',fontWeight:700}},'⚠️ באיחור'):'',
+          t._today?el('span',{style:{color:'var(--straw)',fontWeight:700}},'היום'):'',
         ]),
       ]));
-      row.appendChild(el('div',{style:{fontSize:'18px',color:'var(--mist)'}},'›'));
-      tasksCard.appendChild(row);
+      row.appendChild(el('div',{style:{fontSize:'16px',color:'var(--mist)'}},'›'));
+      card.appendChild(row);
     });
-    tasksCard.appendChild(el('div',{style:{textAlign:'center',marginTop:'8px'}},[
-      el('button',{style:{background:'none',border:'none',color:'var(--earth)',fontSize:'12px',fontWeight:600,cursor:'pointer',textDecoration:'underline',fontFamily:'inherit'},onclick:()=>{TAB='tasks';renderTab();}},'הצג את כל המשימות ←'),
-    ]));
-  }
-  main.appendChild(tasksCard);
+    if(tasks.length>5){
+      card.appendChild(el('div',{style:{textAlign:'center',marginTop:'6px'}},[
+        el('button',{style:{background:'none',border:'none',color:'var(--earth)',fontSize:'11px',fontWeight:600,cursor:'pointer',fontFamily:'inherit'},onclick:()=>{TAB='tasks';renderTab();}},'+ עוד '+(tasks.length-5)+' משימות'),
+      ]));
+    }
+    return card;
+  };
+
+  // Render the two sections
+  main.appendChild(renderTaskList(recToday,{emoji:'🔁',title:'משימות קבועות היום',color:'var(--earth)',emptyMsg:'אין משימות קבועות להיום'}));
+  main.appendChild(renderTaskList(onceToday,{emoji:'📋',title:'משימות חד-פעמיות פתוחות',color:'var(--red)',emptyMsg:'אין משימות חד-פעמיות פתוחות 🎉'}));
 
   // ============ ALERTS ROW (compact) ============
   const alerts=[];
