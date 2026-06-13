@@ -1190,7 +1190,156 @@ function rAI(main){
     el('span',{style:{fontSize:'22px'}},'🤖'),
     el('span',{},'עוזר AI'),
   ]));
-  main.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'14px'}},'תבניות חכמות + עזרה מ-ChatGPT/Claude'));
+  main.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'14px'}},'AI אמיתי + תבניות חכמות'));
+
+  // ============ LIVE CHAT WITH CLAUDE (API) ============
+  const chatCard=el('div',{style:{background:'linear-gradient(135deg,#3d2510,#5a3818)',borderRadius:'14px',padding:'14px',marginBottom:'14px',color:'var(--gold)',boxShadow:'0 4px 16px rgba(26,18,5,.15)'}});
+
+  // Title
+  chatCard.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px'}},[
+    el('span',{style:{fontSize:'24px'}},'💬'),
+    el('div',{style:{flex:1}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:900,fontSize:'16px',color:'#fff'}},'שיחה עם Claude'),
+      el('div',{style:{fontSize:'10px',opacity:.7}},'AI אמיתי - שואל, זוכר, עוזר'),
+    ]),
+  ]));
+
+  // Check if API key exists in localStorage
+  const apiKey=localStorage.getItem('anthropic_api_key')||'';
+
+  if(!apiKey){
+    // Show API key input
+    chatCard.appendChild(el('div',{style:{background:'rgba(0,0,0,.25)',borderRadius:'10px',padding:'12px',marginBottom:'10px'}},[
+      el('div',{style:{fontSize:'12px',marginBottom:'8px',lineHeight:1.5}},'🔑 כדי להתחיל - הדביקי את ה-API key של Claude.'),
+      el('div',{style:{fontSize:'10px',opacity:.6,marginBottom:'10px'}},'נשמר רק במכשיר שלך. לא נשלח לאף אחד אחר.'),
+    ]));
+    const keyInp=el('input',{type:'password',placeholder:'sk-ant-api03-...',style:{width:'100%',background:'rgba(0,0,0,.3)',color:'#fff',border:'1px solid rgba(232,184,75,.3)',borderRadius:'8px',padding:'10px',fontSize:'12px',fontFamily:'monospace',marginBottom:'8px'}});
+    chatCard.appendChild(keyInp);
+    chatCard.appendChild(el('button',{style:{width:'100%',background:'var(--gold)',color:'var(--earth)',border:'none',borderRadius:'10px',padding:'10px',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'},onclick:()=>{
+      const k=keyInp.value.trim();
+      if(!k.startsWith('sk-ant-')){toast('המפתח לא נראה תקין - אמור להתחיל ב-sk-ant-');return;}
+      localStorage.setItem('anthropic_api_key',k);
+      toast('🔑 נשמר! מתחיל שיחה...',2000);
+      setTimeout(()=>renderTab(),500);
+    }},'🔓 שמור והפעל'));
+    chatCard.appendChild(el('div',{style:{fontSize:'10px',opacity:.55,marginTop:'8px',textAlign:'center'}},'אין לך מפתח? צרי ב-console.anthropic.com'));
+    main.appendChild(chatCard);
+  } else {
+    // Initialize chat history in window if not exists
+    if(!window._chatHistory)window._chatHistory=[];
+    if(!window._chatBusy)window._chatBusy=false;
+
+    // Chat messages container
+    const msgsBox=el('div',{id:'chat-msgs',style:{background:'rgba(0,0,0,.2)',borderRadius:'10px',padding:'10px',marginBottom:'10px',maxHeight:'320px',minHeight:'80px',overflowY:'auto',display:'flex',flexDirection:'column',gap:'8px'}});
+
+    if(window._chatHistory.length===0){
+      msgsBox.appendChild(el('div',{style:{textAlign:'center',padding:'18px',opacity:.6,fontSize:'12px',color:'#fff'}},[
+        el('div',{style:{fontSize:'24px',marginBottom:'6px'}},'👋'),
+        el('div',{},'שלום! אני Claude. שאלי אותי על החווה, משימות, סדנאות, מה שתרצי.'),
+        el('div',{style:{fontSize:'10px',marginTop:'8px',opacity:.7}},'אני זוכר את כל השיחה הנוכחית.'),
+      ]));
+    } else {
+      window._chatHistory.forEach(m=>{
+        const isUser=m.role==='user';
+        msgsBox.appendChild(el('div',{style:{alignSelf:isUser?'flex-end':'flex-start',maxWidth:'85%',background:isUser?'var(--gold)':'rgba(255,255,255,.95)',color:isUser?'var(--earth)':'var(--earth)',padding:'8px 12px',borderRadius:isUser?'14px 14px 4px 14px':'14px 14px 14px 4px',fontSize:'13px',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}},m.content));
+      });
+    }
+
+    if(window._chatBusy){
+      msgsBox.appendChild(el('div',{style:{alignSelf:'flex-start',background:'rgba(255,255,255,.95)',color:'var(--earth)',padding:'8px 12px',borderRadius:'14px 14px 14px 4px',fontSize:'13px',opacity:.7}},'Claude כותב... ⏳'));
+    }
+
+    chatCard.appendChild(msgsBox);
+
+    // Input row
+    const inputRow=el('div',{style:{display:'flex',gap:'6px'}});
+    const chatInp=el('textarea',{placeholder:'שאלי אותי משהו...',style:{flex:1,background:'rgba(0,0,0,.3)',color:'#fff',border:'1px solid rgba(232,184,75,.3)',borderRadius:'10px',padding:'10px',fontSize:'13px',fontFamily:'inherit',resize:'none',minHeight:'40px',maxHeight:'80px'}});
+    const sendBtn=el('button',{style:{background:'var(--gold)',color:'var(--earth)',border:'none',borderRadius:'10px',padding:'10px 14px',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0},disabled:window._chatBusy},window._chatBusy?'⏳':'שלח');
+
+    const sendMessage=async()=>{
+      const text=chatInp.value.trim();
+      if(!text||window._chatBusy)return;
+      window._chatBusy=true;
+      // Add user message
+      window._chatHistory.push({role:'user',content:text});
+      chatInp.value='';
+      renderTab();
+      try{
+        // Build system message with farm context
+        const systemMsg=`אתה Claude, עוזר AI חם וחכם של בני, מנהל חוות "שירת האדמה" בישראל - חווה יצרנית מלמדת.
+
+הצוות: ${DB.users.map(u=>u.emoji+' '+u.name+' ('+u.role+')').join(', ')}.
+
+מצב נוכחי בחווה:
+${(()=>{
+  const ctx=[];
+  ctx.push('- '+DB.oT.filter(t=>!t.done).length+' משימות חד-פעמיות פתוחות');
+  ctx.push('- '+DB.rT.length+' משימות שגרתיות');
+  const shortage=DB.inv.filter(i=>i.qty<i.minQty);
+  if(shortage.length)ctx.push('- מלאי חסר: '+shortage.map(i=>i.name).join(', '));
+  ctx.push('- חודש נוכחי: '+monthName);
+  return ctx.join('\\n');
+})()}
+
+ענה בעברית, בסגנון חם וישיר, קצר ולעניין. כשמתאים - הצע צעדים מעשיים. אל תרבה במילים.`;
+
+        // Call Claude API
+        const response=await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'x-api-key':apiKey,
+            'anthropic-version':'2023-06-01',
+            'anthropic-dangerous-direct-browser-access':'true',
+          },
+          body:JSON.stringify({
+            model:'claude-haiku-4-5-20251001',
+            max_tokens:1024,
+            system:systemMsg,
+            messages:window._chatHistory.map(m=>({role:m.role,content:m.content})),
+          }),
+        });
+        const data=await response.json();
+        if(data.error){
+          window._chatHistory.push({role:'assistant',content:'⚠️ שגיאה: '+(data.error.message||'לא מצליח להתחבר')});
+        } else if(data.content&&data.content[0]){
+          const reply=data.content.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+          window._chatHistory.push({role:'assistant',content:reply});
+        }
+      } catch(e){
+        window._chatHistory.push({role:'assistant',content:'⚠️ שגיאת רשת. נסי שוב.'});
+      } finally {
+        window._chatBusy=false;
+        renderTab();
+      }
+    };
+
+    sendBtn.onclick=sendMessage;
+    chatInp.addEventListener('keydown',e=>{
+      if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+    });
+    inputRow.appendChild(chatInp);
+    inputRow.appendChild(sendBtn);
+    chatCard.appendChild(inputRow);
+
+    // Footer actions
+    const footerRow=el('div',{style:{display:'flex',gap:'6px',marginTop:'8px',justifyContent:'space-between'}});
+    footerRow.appendChild(el('button',{style:{background:'rgba(255,255,255,.1)',color:'var(--gold)',border:'1px solid rgba(232,184,75,.3)',borderRadius:'8px',padding:'5px 10px',fontSize:'10px',cursor:'pointer',fontFamily:'inherit'},onclick:()=>{
+      if(window._chatHistory.length===0){return;}
+      if(confirm('לנקות את השיחה?')){window._chatHistory=[];renderTab();}
+    }},'🗑 שיחה חדשה'));
+    footerRow.appendChild(el('button',{style:{background:'transparent',color:'rgba(232,184,75,.6)',border:'none',padding:'5px 10px',fontSize:'10px',cursor:'pointer',fontFamily:'inherit'},onclick:()=>{
+      if(confirm('להוציא את ה-API key?')){localStorage.removeItem('anthropic_api_key');window._chatHistory=[];renderTab();}
+    }},'🔑 שינוי מפתח'));
+    chatCard.appendChild(footerRow);
+
+    main.appendChild(chatCard);
+    // Auto-scroll to bottom
+    setTimeout(()=>{
+      const m=document.getElementById('chat-msgs');
+      if(m)m.scrollTop=m.scrollHeight;
+    },50);
+  }
 
   // ============ SECTION 1: EMAILS ============
   const emailCard=el('div',{className:'card',style:{padding:'14px',marginBottom:'10px',border:'1px solid var(--mist)'}});
