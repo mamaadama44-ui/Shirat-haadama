@@ -634,9 +634,58 @@ function editTask(t){
     if(dueDateInp.value){t.dueDate=dueDateInp.value;t.due=dueDateInp.value;}
     save();bg.remove();toast('נשמר \u2713');renderTab();
   },{width:'100%',marginTop:'10px'}));
+  // Calendar export button (only if there's a date)
+  box.appendChild(btn('📅 הוסף ליומן הטלפון (עם תזכורת)','rgba(91,110,245,.08)',()=>{
+    const date=dateInp.value||dueDateInp.value;
+    if(!date){toast('קודם הוסף תאריך');return;}
+    addTaskToCalendar({title:titleInp.value.trim()||t.title,date,time:timeInp.value,id:t.id});
+  },{width:'100%',marginTop:'6px',color:'var(--earth)',border:'1px solid var(--earth)'}));
   box.appendChild(btn('ביטול','var(--mist)',()=>bg.remove(),{width:'100%',marginTop:'6px',color:'var(--soil)'}));
   bg.appendChild(box);bg.addEventListener('click',e=>{if(e.target===bg)bg.remove();});
   document.body.appendChild(bg);
+}
+
+// Generate ICS file for adding task to phone calendar with reminder
+function addTaskToCalendar(task){
+  if(!task.date){toast('חסר תאריך');return;}
+  const uid='shirat-'+(task.id||Date.now())+'@shirat-haadama';
+  const stamp=new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  let startLine,endLine,alarm;
+  if(task.time){
+    // Scheduled event with start time (1-hour default duration)
+    const [hh,mm]=task.time.split(':').map(Number);
+    const startDt=new Date(task.date+'T00:00:00');
+    startDt.setHours(hh,mm,0,0);
+    const endDt=new Date(startDt.getTime()+60*60000); // 1 hour
+    const fmt=dt=>dt.getFullYear()+String(dt.getMonth()+1).padStart(2,'0')+String(dt.getDate()).padStart(2,'0')+'T'+String(dt.getHours()).padStart(2,'0')+String(dt.getMinutes()).padStart(2,'0')+'00';
+    startLine='DTSTART:'+fmt(startDt);
+    endLine='DTEND:'+fmt(endDt);
+    alarm='TRIGGER:-PT30M'; // 30 min before
+  } else {
+    // All-day event
+    const d=task.date.replace(/-/g,'');
+    const dObj=new Date(task.date);dObj.setDate(dObj.getDate()+1);
+    const dEnd=dObj.getFullYear()+String(dObj.getMonth()+1).padStart(2,'0')+String(dObj.getDate()).padStart(2,'0');
+    startLine='DTSTART;VALUE=DATE:'+d;
+    endLine='DTEND;VALUE=DATE:'+dEnd;
+    alarm='TRIGGER:-PT9H'; // morning reminder
+  }
+  const ics=[
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Shirat-haadama//HE','CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+stamp,
+    startLine,endLine,
+    'SUMMARY:🌾 '+task.title,
+    'DESCRIPTION:משימה משירת האדמה',
+    'BEGIN:VALARM',alarm,'ACTION:DISPLAY','DESCRIPTION:'+task.title,'END:VALARM',
+    'END:VEVENT','END:VCALENDAR',
+  ].join('\r\n');
+  const blob=new Blob([ics],{type:'text/calendar;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=(task.title||'task').slice(0,20).replace(/[^\w\u0590-\u05FF]/g,'_')+'.ics';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast('📅 נפתח - אשר הוספה ליומן',3500);
 }
 
 function openTaskJournal(tid){
@@ -792,6 +841,54 @@ function rHome(main){
     qhCard.appendChild(linkRow);
   }
   main.appendChild(qhCard);
+
+  // ============ WEEKLY LOAD VIEW (colored by task density) ============
+  const weekCard=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'14px',marginBottom:'14px',border:'1px solid var(--mist)',boxShadow:'0 2px 8px rgba(26,18,5,.06)'}});
+  weekCard.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}},[
+    el('div',{style:{display:'flex',alignItems:'center',gap:'6px'}},[
+      el('span',{style:{fontSize:'18px'}},'📅'),
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px'}},'השבוע הקרוב'),
+    ]),
+    el('div',{style:{fontSize:'10px',color:'var(--clay)'}},'אדום = יום עמוס'),
+  ]));
+
+  // Build 7 days ahead - count open tasks per day (due dates)
+  const weekDayNames=['א','ב','ג','ד','ה','ו','ש'];
+  const isoOf=(d)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const buildWeek=()=>{
+    const out=[];
+    const base=new Date();
+    for(let i=0;i<7;i++){
+      const d=new Date(base);
+      d.setDate(base.getDate()+i);
+      const iso=isoOf(d);
+      // Count open one-off tasks due on this day
+      const count=DB.oT.filter(t=>!t.done&&t.due===iso).length;
+      out.push({iso,count,dayName:weekDayNames[d.getDay()],dayNum:d.getDate(),isToday:i===0});
+    }
+    return out;
+  };
+  const loadColor=(count)=>{
+    if(count<=0)return 'var(--mist)';
+    if(count===1)return '#fde0e4';
+    if(count===2)return '#f9b8c1';
+    if(count===3)return '#f2818f';
+    return '#e2445c';
+  };
+  const loadText=(count)=>(count>=3?'#fff':'var(--earth)');
+
+  const weekRow=el('div',{style:{display:'flex',gap:'5px'}});
+  buildWeek().forEach(d=>{
+    const col=el('button',{style:{flex:1,background:loadColor(d.count),border:d.isToday?'2px solid var(--earth)':'1px solid var(--mist)',borderRadius:'10px',padding:'8px 4px',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',minWidth:0,fontFamily:'inherit'},onclick:()=>{TAB='tasks';renderTab();}});
+    col.appendChild(el('div',{style:{fontSize:'10px',fontWeight:600,color:loadText(d.count)}},d.dayName));
+    col.appendChild(el('div',{style:{fontSize:'16px',fontWeight:800,fontFamily:"'Frank Ruhl Libre',serif",color:loadText(d.count)}},d.dayNum));
+    if(d.count>0){
+      col.appendChild(el('div',{style:{fontSize:'10px',fontWeight:700,background:'rgba(255,255,255,.35)',borderRadius:'6px',padding:'0 5px',color:loadText(d.count)}},d.count));
+    }
+    weekRow.appendChild(col);
+  });
+  weekCard.appendChild(weekRow);
+  main.appendChild(weekCard);
 
   // ============ HIGH PRIORITY TASKS TODAY ============
   // Build list of tasks for today
@@ -3404,11 +3501,81 @@ function rSummary(main){
   const totalDone=monthKeys.reduce((s,k)=>s+Object.keys(DB.comps[k]).length,0);
   const shortage=DB.inv.filter(i=>i.qty<i.minQty).map(i=>({...i,missing:Math.max(0,i.minQty-i.qty)}));
   const needsMaint=DB.equip.filter(e=>e.cond<70);
-  const nav=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}});
-  const pb=el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'7px',padding:'5px 12px',cursor:'pointer'},onclick:()=>{HM--;if(HM<0){HM=11;HY--;}renderTab();}},'◀');
-  const nb=el('button',{style:{background:'var(--mist)',border:'none',borderRadius:'7px',padding:'5px 12px',cursor:'pointer'},onclick:()=>{HM++;if(HM>11){HM=0;HY++;}renderTab();}},'▶');
-  nav.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'9px'}},[pb,el('span',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'15px',fontWeight:700}},`${MONTHS[HM2]} ${HY2}`),nb]));
-  nav.appendChild(el('span',{style:{fontSize:'11px',color:'var(--clay)'}},`1-${new Date(HY2,HM2+1,0).getDate()} ב${MONTHS[HM2]}`));
+
+  // ============ HEADER + HERO ============
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'17px',fontWeight:900,marginBottom:'4px',display:'flex',alignItems:'center',gap:'8px'}},[
+    el('span',{style:{fontSize:'22px'}},'📊'),
+    el('span',{},'סיכומים'),
+  ]));
+  main.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'12px'}},'מבט אחורה על הפעילות שלכם'));
+
+  // Period selector (day/week/month) - just for visual quick stats
+  const now=new Date();
+  const tdkv=tdk();
+  let sumPeriod=window._sumPeriod||'month';
+  const periodLabels={day:'היום',week:'השבוע',month:MONTHS[HM2]};
+  // Calculate stats for selected period
+  const periodStats=(period)=>{
+    const start=new Date();start.setHours(0,0,0,0);
+    if(period==='week')start.setDate(start.getDate()-6);
+    else if(period==='month'){start.setFullYear(HY2,HM2,1);}
+    let end=new Date();
+    if(period==='month')end=new Date(HY2,HM2+1,0,23,59,59);
+    const inRange=iso=>{if(!iso)return false;const d=new Date(iso+'T00:00:00');return d>=start&&d<=end;};
+    // Done tasks count for the period
+    let done=0,hrs=0;
+    Object.keys(DB.comps||{}).filter(inRange).forEach(k=>{done+=Object.keys(DB.comps[k]).length;});
+    (DB.hoursLog||[]).filter(h=>inRange(h.date)).forEach(h=>{hrs+=ch(h.start,h.end);});
+    // Open tasks
+    const open=DB.oT.filter(t=>!t.done).length;
+    // Overdue
+    const overdue=DB.oT.filter(t=>!t.done&&t.due&&t.due<tdkv).length;
+    return {done,hrs,open,overdue};
+  };
+
+  const periodRow=el('div',{style:{display:'flex',gap:'6px',marginBottom:'14px',background:'var(--mist)',borderRadius:'10px',padding:'4px'}});
+  const periodBtn=(val,label)=>{
+    const b=el('button',{style:{flex:1,background:val===sumPeriod?'var(--white)':'transparent',color:val===sumPeriod?'var(--earth)':'var(--clay)',border:'none',borderRadius:'7px',padding:'8px',fontSize:'12px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',boxShadow:val===sumPeriod?'0 1px 3px rgba(0,0,0,.1)':'none'},onclick:()=>{window._sumPeriod=val;renderTab();}},label);
+    return b;
+  };
+  periodRow.appendChild(periodBtn('day','יום'));
+  periodRow.appendChild(periodBtn('week','שבוע'));
+  periodRow.appendChild(periodBtn('month','חודש'));
+  main.appendChild(periodRow);
+
+  // Hero stats
+  const stats=periodStats(sumPeriod);
+  const total=stats.done+stats.open;
+  const pct=total>0?Math.round(stats.done/total*100):0;
+  const heroGrid=el('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'8px',marginBottom:'12px'}});
+  const heroStat=(num,label,col)=>el('div',{style:{background:'var(--white)',border:'1px solid var(--mist)',borderTop:'3px solid '+col,borderRadius:'12px',padding:'14px 6px',textAlign:'center',boxShadow:'0 1px 3px rgba(26,18,5,.06)'}},[
+    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'26px',fontWeight:900,color:col,lineHeight:'1'}},num),
+    el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'4px'}},label),
+  ]);
+  heroGrid.appendChild(heroStat(stats.done,'הושלמו '+periodLabels[sumPeriod],'var(--sage)'));
+  heroGrid.appendChild(heroStat(stats.open,'משימות פתוחות','var(--earth)'));
+  heroGrid.appendChild(heroStat(stats.overdue,'באיחור',stats.overdue>0?'var(--red)':'var(--clay)'));
+  main.appendChild(heroGrid);
+
+  // Progress bar
+  if(total>0){
+    const progCard=el('div',{style:{background:'var(--white)',border:'1px solid var(--mist)',borderRadius:'12px',padding:'14px',marginBottom:'12px',boxShadow:'0 1px 3px rgba(26,18,5,.06)'}});
+    progCard.appendChild(el('div',{style:{display:'flex',justifyContent:'space-between',fontSize:'12px',color:'var(--clay)',marginBottom:'8px'}},[
+      el('span',{},'אחוז השלמה '+periodLabels[sumPeriod]),
+      el('span',{style:{fontWeight:800,color:'var(--sage)',fontSize:'14px'}},pct+'%'),
+    ]));
+    const bar=el('div',{style:{height:'12px',background:'var(--mist)',borderRadius:'6px',overflow:'hidden'}});
+    bar.appendChild(el('div',{style:{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#7fc77a,var(--sage))',borderRadius:'6px',transition:'width .4s'}}));
+    progCard.appendChild(bar);
+    main.appendChild(progCard);
+  }
+
+  // ============ MONTH NAV (existing logic, for inventory/equipment by month) ============
+  const nav=el('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',background:'var(--mist)',borderRadius:'8px',padding:'6px 10px'}});
+  const pb=el('button',{style:{background:'none',border:'none',padding:'5px 10px',cursor:'pointer',fontSize:'14px'},onclick:()=>{HM--;if(HM<0){HM=11;HY--;}renderTab();}},'◀');
+  const nb=el('button',{style:{background:'none',border:'none',padding:'5px 10px',cursor:'pointer',fontSize:'14px'},onclick:()=>{HM++;if(HM>11){HM=0;HY++;}renderTab();}},'▶');
+  nav.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'9px'}},[pb,el('span',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'14px',fontWeight:700}},`${MONTHS[HM2]} ${HY2}`),nb]));
+  nav.appendChild(el('span',{style:{fontSize:'11px',color:'var(--clay)'}},'פירוט חודשי'));
   main.appendChild(nav);
   const kg=el('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}});
   [{icon:'⏱',l:'שעות עבודה',v:totalH.toFixed(1)+"ש'",c:'var(--sage)'},{icon:'✅',l:'משימות בוצעו',v:totalDone,c:'var(--gold)'},{icon:'⚠️',l:'פריטים חסרים',v:shortage.length,c:shortage.length?'var(--red)':'var(--sage)'},{icon:'🔧',l:'ציוד לתחזוקה',v:needsMaint.length,c:needsMaint.length?'var(--red)':'var(--sage)'}].forEach(k=>{
