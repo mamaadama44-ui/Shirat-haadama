@@ -247,7 +247,7 @@ const DEFAULT_DATA = {
     {id:'o1',title:'הכנת סדנה משפחתית',area:'admin',pri:'high',uid:'',due:'2026-05-20',done:false,doneAt:null},
     {id:'o2',title:'פרסום סדנה זוגיות',area:'marketing',pri:'medium',uid:'',due:'2026-05-25',done:false,doneAt:null},
   ],
-  comps:{},taskNotes:{},actLog:[],hoursLog:[],bonus:{},
+  comps:{},taskNotes:{},actLog:[],hoursLog:[],bonus:{},shopping:[],
   suppliers:[
     {id:'s1',name:'הגרעין',category:'חקלאות',phone:'',email:'',notes:'זרעים ומוצרי חקלאות',items:[]},
     {id:'s2',name:'ספק אוכל לחיות',category:'בעלי חיים',phone:'',email:'',notes:'מזון לבעלי חיים',items:[]},
@@ -479,7 +479,7 @@ function renderApp(){
     el('div',{className:'prog-w'},[el('div',{className:'prog-bg'},[pf])]),tw
   ]);
   const main=el('div',{className:'app-main',id:'app-main'});
-  const TABS=[{id:'home',l:'🏠 בית'},{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'maint',l:'🔧 תחזוקה'},{id:'ai',l:'🤖 AI'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 עונות'}];
+  const TABS=[{id:'home',l:'🏠 בית'},{id:'tasks',l:'📋 משימות'},{id:'act',l:'📋 פעילות'},{id:'inv',l:'📦 מלאי'},{id:'shop',l:'🛒 קניות'},{id:'maint',l:'🔧 תחזוקה'},{id:'ai',l:'🤖 AI'},{id:'proj',l:'🗂 פרויקטים'},{id:'team',l:'👥 צוות'},{id:'jour',l:'📔 יומן'},{id:'sum',l:'📊 סיכום'},{id:'garden',l:'🌱 עונות'}];
   TABS.forEach(t=>{
     const b=el('button',{className:'tab-btn'+(t.id===TAB?' on':''),onclick:()=>{TAB=t.id;tw.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');renderTab(main,pf);}},t.l);
     tw.appendChild(b);
@@ -508,6 +508,7 @@ function renderTab(mainEl,pfEl){
   else if(TAB==='tasks')rTasks(main);
   else if(TAB==='act')rActivity(main);
   else if(TAB==='inv')rInventory(main);
+  else if(TAB==='shop')rShopping(main);
   else if(TAB==='maint')rMaintenance(main);
   else if(TAB==='ai')rAI(main);
   else if(TAB==='proj')rProjects(main);
@@ -2051,6 +2052,169 @@ function rActivity(main){
     });
     main.appendChild(c);
   }
+}
+
+// ===================== SHOPPING LIST =====================
+function rShopping(main){
+  if(!DB.shopping)DB.shopping=[];
+
+  // Sync from inventory shortage (auto-add missing items)
+  const shortageItems=DB.inv.filter(i=>i.qty<i.minQty);
+
+  // Header
+  main.appendChild(el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontSize:'17px',fontWeight:900,marginBottom:'4px',display:'flex',alignItems:'center',gap:'8px'}},[
+    el('span',{style:{fontSize:'22px'}},'🛒'),
+    el('span',{},'רשימת קניות'),
+  ]));
+  main.appendChild(el('div',{style:{fontSize:'11px',color:'var(--clay)',marginBottom:'14px'}},'מתעדכן אוטומטית מהמלאי'));
+
+  // ============ AUTO-SYNCED FROM INVENTORY ============
+  const autoCard=el('div',{style:{background:'rgba(232,184,75,.08)',borderRadius:'14px',padding:'14px',marginBottom:'14px',border:'1px solid rgba(232,184,75,.3)'}});
+  autoCard.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'6px',marginBottom:'10px'}},[
+    el('span',{style:{fontSize:'18px'}},'🤖'),
+    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',flex:1}},'חסר במלאי - חייב לקנות'),
+    el('div',{style:{fontSize:'11px',color:'var(--clay)',background:'var(--mist)',padding:'2px 8px',borderRadius:'10px'}},shortageItems.length),
+  ]));
+
+  if(shortageItems.length===0){
+    autoCard.appendChild(el('div',{style:{textAlign:'center',padding:'10px',color:'var(--sage)',fontSize:'12px'}},'✅ המלאי מלא - אין מה לקנות'));
+  } else {
+    shortageItems.forEach(item=>{
+      const missing=Math.max(0,item.minQty-item.qty);
+      const row=el('div',{style:{display:'flex',gap:'10px',alignItems:'center',padding:'8px 4px',borderBottom:'1px solid rgba(232,184,75,.2)'}});
+      row.appendChild(el('div',{style:{fontSize:'22px',flexShrink:0}},item.icon||'📦'));
+      row.appendChild(el('div',{style:{flex:1,minWidth:0}},[
+        el('div',{style:{fontWeight:600,fontSize:'13px',color:'var(--earth)'}},item.name),
+        el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'1px'}},'יש: '+item.qty+' '+(item.unit||'')+' • מינימום: '+item.minQty+' '+(item.unit||'')),
+      ]));
+      row.appendChild(el('div',{style:{background:'var(--red)',color:'#fff',padding:'4px 10px',borderRadius:'8px',fontSize:'12px',fontWeight:700}},'חסר '+missing.toFixed(1)));
+      autoCard.appendChild(row);
+    });
+  }
+  main.appendChild(autoCard);
+
+  // ============ QUICK ADD ============
+  const addCard=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'14px',marginBottom:'14px',border:'1px solid var(--mist)',boxShadow:'0 2px 8px rgba(26,18,5,.06)'}});
+  addCard.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'6px',marginBottom:'10px'}},[
+    el('span',{style:{fontSize:'18px'}},'➕'),
+    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px'}},'הזנה מהירה'),
+  ]));
+  const itemInp=el('input',{type:'text',placeholder:'מה לקנות? (לדוגמה: לחם, חלב, ברגים)',style:{width:'100%',padding:'10px 12px',border:'1px solid var(--mist)',borderRadius:'8px',fontSize:'13px',fontFamily:'inherit',marginBottom:'8px',boxSizing:'border-box'}});
+  const qtyInp=el('input',{type:'text',placeholder:'כמות (אופציונלי)',style:{width:'100%',padding:'10px 12px',border:'1px solid var(--mist)',borderRadius:'8px',fontSize:'13px',fontFamily:'inherit',marginBottom:'8px',boxSizing:'border-box'}});
+
+  const addItem=()=>{
+    const name=itemInp.value.trim();
+    if(!name){toast('חסר שם פריט');return;}
+    const qty=qtyInp.value.trim();
+    DB.shopping.push({
+      id:'sh'+Date.now(),
+      name,
+      qty,
+      addedBy:ME.id,
+      addedAt:Date.now(),
+      bought:false,
+    });
+    save();
+    itemInp.value='';
+    qtyInp.value='';
+    toast('✓ נוסף לרשימה');
+    renderTab();
+  };
+
+  addCard.appendChild(itemInp);
+  addCard.appendChild(qtyInp);
+  addCard.appendChild(btn('הוסף לרשימה','var(--sage)',addItem,{width:'100%'}));
+  itemInp.addEventListener('keydown',e=>{if(e.key==='Enter')addItem();});
+  qtyInp.addEventListener('keydown',e=>{if(e.key==='Enter')addItem();});
+  main.appendChild(addCard);
+
+  // ============ USER-ADDED ITEMS ============
+  const sortedItems=[...DB.shopping].sort((a,b)=>{
+    if(a.bought!==b.bought)return a.bought?1:-1;
+    return (b.addedAt||0)-(a.addedAt||0);
+  });
+  const openItems=sortedItems.filter(i=>!i.bought);
+  const boughtItems=sortedItems.filter(i=>i.bought);
+
+  const listCard=el('div',{style:{background:'var(--white)',borderRadius:'14px',padding:'14px',marginBottom:'14px',border:'1px solid var(--mist)',boxShadow:'0 2px 8px rgba(26,18,5,.06)'}});
+  listCard.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'6px',marginBottom:'10px'}},[
+    el('span',{style:{fontSize:'18px'}},'📝'),
+    el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:700,fontSize:'14px',flex:1}},'הרשימה שלי'),
+    el('div',{style:{fontSize:'11px',color:'var(--clay)',background:'var(--mist)',padding:'2px 8px',borderRadius:'10px'}},openItems.length),
+  ]));
+
+  if(DB.shopping.length===0){
+    listCard.appendChild(el('div',{style:{textAlign:'center',padding:'20px',color:'var(--clay)'}},[
+      el('div',{style:{fontSize:'30px',marginBottom:'6px'}},'🛍️'),
+      el('div',{style:{fontSize:'13px'}},'הרשימה ריקה - הוסיפי פריטים למעלה'),
+    ]));
+  } else {
+    // Render open items
+    openItems.forEach(item=>{
+      const adder=gu(item.addedBy);
+      const dateStr=item.addedAt?new Date(item.addedAt).toLocaleDateString('he-IL',{day:'numeric',month:'short'}):'';
+      const row=el('div',{style:{display:'flex',gap:'10px',alignItems:'center',padding:'10px 4px',borderBottom:'1px solid var(--mist)'}});
+      // Check button
+      const checkBtn=el('button',{style:{width:'26px',height:'26px',borderRadius:'8px',background:'var(--mist)',border:'2px solid var(--mist)',cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'},onclick:()=>{
+        item.bought=true;
+        item.boughtBy=ME.id;
+        item.boughtAt=Date.now();
+        save();toast('✓ נקנה');renderTab();
+      }},'');
+      row.appendChild(checkBtn);
+      row.appendChild(el('div',{style:{flex:1,minWidth:0}},[
+        el('div',{style:{fontWeight:600,fontSize:'13px',color:'var(--earth)'}},item.name+(item.qty?' • '+item.qty:'')),
+        el('div',{style:{fontSize:'10px',color:'var(--clay)',marginTop:'1px'}},[
+          adder?(adder.emoji+' '+adder.name):'',
+          dateStr?(' • '+dateStr):'',
+        ].join('')),
+      ]));
+      // Delete button
+      row.appendChild(el('button',{style:{background:'none',border:'none',cursor:'pointer',fontSize:'16px',color:'var(--clay)',padding:'4px'},onclick:()=>{
+        if(!confirm('למחוק "'+item.name+'"?'))return;
+        DB.shopping=DB.shopping.filter(i=>i.id!==item.id);
+        save();renderTab();
+      }},'🗑'));
+      listCard.appendChild(row);
+    });
+
+    // Show bought items collapsed
+    if(boughtItems.length>0){
+      const showBought=window._showBoughtItems||false;
+      listCard.appendChild(el('div',{style:{marginTop:'8px',paddingTop:'10px',borderTop:'2px solid var(--mist)'}},[
+        el('button',{style:{background:'none',border:'none',color:'var(--clay)',fontSize:'12px',fontWeight:600,cursor:'pointer',fontFamily:'inherit',padding:'4px 0'},onclick:()=>{window._showBoughtItems=!showBought;renderTab();}},(showBought?'▼ הסתר':'▶ הצג')+' '+boughtItems.length+' שנקנו'),
+      ]));
+      if(showBought){
+        boughtItems.forEach(item=>{
+          const buyer=gu(item.boughtBy);
+          const buyDate=item.boughtAt?new Date(item.boughtAt).toLocaleDateString('he-IL',{day:'numeric',month:'short'}):'';
+          const row=el('div',{style:{display:'flex',gap:'10px',alignItems:'center',padding:'6px 4px',opacity:.55}});
+          row.appendChild(el('div',{style:{width:'22px',height:'22px',borderRadius:'7px',background:'var(--sage)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'14px',color:'#fff',flexShrink:0}},'✓'));
+          row.appendChild(el('div',{style:{flex:1,minWidth:0}},[
+            el('div',{style:{fontSize:'12px',color:'var(--earth)',textDecoration:'line-through'}},item.name+(item.qty?' • '+item.qty:'')),
+            el('div',{style:{fontSize:'10px',color:'var(--clay)'}},[
+              buyer?(buyer.emoji+' '+buyer.name+' קנה'):'נקנה',
+              buyDate?(' • '+buyDate):'',
+            ].join('')),
+          ]));
+          // Undo
+          row.appendChild(el('button',{style:{background:'none',border:'none',cursor:'pointer',fontSize:'12px',color:'var(--clay)',padding:'4px'},onclick:()=>{
+            item.bought=false;item.boughtBy=null;item.boughtAt=null;
+            save();renderTab();
+          }},'↩'));
+          listCard.appendChild(row);
+        });
+
+        // Clear bought button
+        listCard.appendChild(btn('🗑 מחק את כל מה שנקנה','var(--mist)',()=>{
+          if(!confirm('למחוק את כל '+boughtItems.length+' הפריטים שנקנו?'))return;
+          DB.shopping=DB.shopping.filter(i=>!i.bought);
+          save();toast('נמחקו');renderTab();
+        },{width:'100%',marginTop:'10px',color:'var(--soil)',fontSize:'11px'}));
+      }
+    }
+  }
+  main.appendChild(listCard);
 }
 
 function rInventory(main){
