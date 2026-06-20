@@ -727,6 +727,151 @@ function openTaskJournal(tid){
   document.body.appendChild(bg);
 }
 
+// ============ COACH (מאמן) — adapts to who is logged in ============
+function renderCoach(main){
+  const isAdmin=ME.role==='\u05de\u05e0\u05d4\u05dc';
+  const now=new Date();
+  const hour=now.getHours();
+  const today=tdk();
+  const todayComps=DB.comps[today]||{};
+
+  let myDoneEver=0;
+  Object.values(DB.comps||{}).forEach(dc=>{Object.values(dc).forEach(by=>{if(by===ME.id)myDoneEver++;});});
+  const myHoursEver=(DB.hoursLog||[]).filter(h=>h.uid===ME.id).length;
+  const isNewbie=(myDoneEver<3 && myHoursEver<2 && !isAdmin);
+
+  const card=el('div',{style:{background:'linear-gradient(150deg,#2d1a08,#3d2510 60%,#1a2a10)',borderRadius:'16px',padding:'16px',marginBottom:'14px',color:'var(--cream)',boxShadow:'0 4px 16px rgba(0,0,0,.18)',position:'relative',overflow:'hidden'}});
+  card.appendChild(el('div',{style:{position:'absolute',top:'-18px',left:'-18px',fontSize:'90px',opacity:.06,pointerEvents:'none'}},'🌻'));
+
+  let greet='שלום';
+  if(hour>=5&&hour<12)greet='בוקר טוב';
+  else if(hour>=12&&hour<17)greet='צהריים טובים';
+  else if(hour>=17&&hour<22)greet='ערב טוב';
+  else greet='לילה טוב';
+
+  card.appendChild(el('div',{style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:'10px',position:'relative'}},[
+    el('span',{style:{fontSize:'20px'}},'🌻'),
+    el('div',{style:{flex:1}},[
+      el('div',{style:{fontFamily:"'Frank Ruhl Libre',serif",fontWeight:900,fontSize:'16px',color:'var(--gold)'}},'אולגה · מאמנת החווה'),
+      el('div',{style:{fontSize:'10px',opacity:.7}},greet+', '+ME.name),
+    ]),
+  ]));
+
+  if(isNewbie){
+    card.appendChild(el('div',{style:{fontSize:'14px',lineHeight:1.6,marginBottom:'12px',position:'relative'}},
+      'ברוך הבא לשירת האדמה, '+ME.name+'! אני אולגה, ואני כאן לעזור לך להתחיל. הנה שלושת הדברים הכי חשובים לדעת:'));
+
+    const steps=[
+      {n:'1',t:'לראות את המשימות שלך',d:'בטאב "📋 משימות" תמצא את כל מה שצריך לעשות. המשימות שלך מסומנות עם האימוג׳י שלך.'},
+      {n:'2',t:'לסמן שביצעת',d:'כשסיימת משימה — לחץ על הריבוע לידה. זהו! זה נספר אוטומטית.'},
+      {n:'3',t:'לרשום שעות עבודה',d:'במסך הבית יש "▶️ התחל יום עבודה". לחץ כשאתה מתחיל, ו-"סיים" כשגמרת.'},
+    ];
+    steps.forEach(s=>{
+      card.appendChild(el('div',{style:{display:'flex',gap:'10px',alignItems:'flex-start',background:'rgba(245,237,216,.08)',borderRadius:'10px',padding:'10px 12px',marginBottom:'7px',position:'relative'}},[
+        el('div',{style:{width:'24px',height:'24px',borderRadius:'50%',background:'var(--gold)',color:'var(--earth)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,fontSize:'13px',flexShrink:0}},s.n),
+        el('div',{style:{flex:1}},[
+          el('div',{style:{fontWeight:700,fontSize:'13px',color:'var(--gold)'}},s.t),
+          el('div',{style:{fontSize:'12px',opacity:.85,marginTop:'2px',lineHeight:1.5}},s.d),
+        ]),
+      ]));
+    });
+    card.appendChild(el('div',{style:{fontSize:'12px',opacity:.8,marginTop:'10px',fontStyle:'italic',position:'relative'}},
+      'יש שאלה? בטאב "🤖 AI" אפשר לשאול אותי כל דבר. בהצלחה! 🌱'));
+    main.appendChild(card);
+    return;
+  }
+
+  const myToday=DB.rT.filter(t=>{
+    if(t.uid&&t.uid!==ME.id)return false;
+    if(t.rec==='daily')return true;
+    if(t.rec==='weekly')return true;
+    if(t.rec==='monthly')return now.getDate()===1;
+    if(t.rec==='specific')return t.scheduledDate===today;
+    return false;
+  }).filter(t=>!todayComps[t.id]);
+  const myOnce=DB.oT.filter(t=>!t.done&&(!t.uid||t.uid===ME.id)&&(!t.due||t.due<=today));
+  const myPending=myToday.length+myOnce.length;
+  const overdue=DB.oT.filter(t=>!t.done&&t.due&&t.due<today);
+  const shortage=DB.inv.filter(i=>i.qty<i.minQty);
+
+  let msg='';
+  if(myPending===0){
+    msg=isAdmin?'הכל תחת שליטה כרגע. אין משימות פתוחות שלך להיום — זמן טוב לתכנן קדימה או לבדוק מה שלום הצוות.'
+               :'כל הכבוד, '+ME.name+'! אין לך משימות פתוחות להיום. אם בא לך — אפשר לעזור לחבר צוות או לבדוק מה הלאה.';
+  } else {
+    const first=myToday[0]||myOnce[0];
+    msg='יש לך '+myPending+' '+(myPending===1?'משימה פתוחה':'משימות פתוחות')+' להיום.';
+    if(first)msg+=' הבא בתור: "'+first.title+'". בוא נתחיל מזה.';
+  }
+  card.appendChild(el('div',{style:{fontSize:'14px',lineHeight:1.6,marginBottom:'10px',position:'relative'}},msg));
+
+  const alerts=[];
+  if(isAdmin){
+    if(overdue.length>0)alerts.push({icon:'🔴',txt:overdue.length+' '+(overdue.length===1?'משימה באיחור':'משימות באיחור')+' — הכי דחופה: '+overdue[0].title});
+    if(shortage.length>0)alerts.push({icon:'📦',txt:shortage.length+' פריטי מלאי חסרים — שווה להזמין'});
+    const activeToday=new Set(Object.values(todayComps));
+    const inactiveWorkers=DB.users.filter(u=>u.role!=='\u05de\u05e0\u05d4\u05dc'&&!activeToday.has(u.id));
+    if(inactiveWorkers.length>0&&hour>=11){
+      alerts.push({icon:'👤',txt:inactiveWorkers.map(u=>u.name).join(', ')+' עוד לא סימנו פעילות היום'});
+    }
+  } else {
+    const myOverdue=overdue.filter(t=>!t.uid||t.uid===ME.id);
+    if(myOverdue.length>0)alerts.push({icon:'🔴',txt:'יש לך '+myOverdue.length+' '+(myOverdue.length===1?'משימה באיחור':'משימות באיחור')});
+  }
+  alerts.forEach(a=>{
+    card.appendChild(el('div',{style:{display:'flex',gap:'9px',alignItems:'center',background:'rgba(200,90,58,.18)',borderRadius:'10px',padding:'9px 12px',marginBottom:'6px',position:'relative'}},[
+      el('span',{style:{fontSize:'17px',flexShrink:0}},a.icon),
+      el('span',{style:{fontSize:'13px',fontWeight:600,lineHeight:1.4}},a.txt),
+    ]));
+  });
+
+  if(isAdmin){
+    const openOnce=DB.oT.filter(t=>!t.done);
+    const byOwner={};
+    openOnce.forEach(t=>{
+      const u=t.uid?gu(t.uid):null;
+      const who=u?u.name:'לא משויך';
+      if(!byOwner[who])byOwner[who]=[];
+      byOwner[who].push(t);
+    });
+    const owners=Object.entries(byOwner);
+    if(owners.length>0){
+      card.appendChild(el('div',{style:{fontSize:'11px',fontWeight:700,opacity:.7,marginTop:'12px',marginBottom:'7px',letterSpacing:'.5px',position:'relative'}},'מי על מה:'));
+      owners.forEach(([who,list])=>{
+        card.appendChild(el('div',{style:{display:'flex',gap:'8px',alignItems:'center',padding:'5px 0',borderBottom:'1px solid rgba(245,237,216,.1)',position:'relative'}},[
+          el('span',{style:{fontSize:'12px',fontWeight:700,minWidth:'60px',color:'var(--gold)'}},who),
+          el('span',{style:{fontSize:'11px',opacity:.8,flex:1}},list.slice(0,3).map(t=>t.title).join(' · ')+(list.length>3?' +'+(list.length-3):'')),
+        ]));
+      });
+    }
+  }
+
+  const tip=pickFarmTip(isAdmin);
+  if(tip){
+    card.appendChild(el('div',{style:{background:'rgba(232,184,75,.12)',border:'1px solid rgba(232,184,75,.3)',borderRadius:'10px',padding:'10px 12px',marginTop:'12px',position:'relative'}},[
+      el('div',{style:{fontSize:'11px',fontWeight:800,color:'var(--gold)',marginBottom:'4px'}},'💡 ידעת?'),
+      el('div',{style:{fontSize:'13px',lineHeight:1.5}},tip.emoji+' '+tip.txt),
+    ]));
+  }
+
+  main.appendChild(card);
+}
+
+function pickFarmTip(isAdmin){
+  const tips=[];
+  if(!window._chatHistory||window._chatHistory.length===0){
+    tips.push({emoji:'🤖',txt:'בטאב "AI" יש צ׳אט חי עם Claude שמכיר את כל החווה — שאל אותו כל שאלה על משימות, סדנאות או צמחים.'});
+  }
+  tips.push({emoji:'📅',txt:'אפשר להוסיף כל משימה ליומן הטלפון עם תזכורת — פתח משימה ולחץ "הוסף ליומן".'});
+  tips.push({emoji:'🧩',txt:'משימה גדולה? בטאב AI אפשר לפרק אותה אוטומטית לתת-משימות מעשיות.'});
+  tips.push({emoji:'🌱',txt:'בטאב "עונות" יש לוח זריעה לכל חודש — מה לזרוע, מתי, ואיך.'});
+  if(isAdmin)tips.push({emoji:'🛒',txt:'רשימת הקניות מתעדכנת אוטומטית מהמלאי — כל פריט שחסר מופיע שם לבד.'});
+  tips.push({emoji:'📔',txt:'בטאב "יומן" אפשר לתעד מה קרה בחווה כל יום — מזג אוויר, מצב, והערות.'});
+  if(tips.length===0)return null;
+  const idx=new Date().getDate()%tips.length;
+  return tips[idx];
+}
+
 // ============ HOME DASHBOARD ============
 function rHome(main){
   const today=tdk();
@@ -734,6 +879,8 @@ function rHome(main){
   const now=new Date();
   const hour=now.getHours();
   const isAdmin=ME.role==='\u05de\u05e0\u05d4\u05dc';
+
+  renderCoach(main);
 
   // Greeting based on hour
   let greeting='ברוך הבא';
