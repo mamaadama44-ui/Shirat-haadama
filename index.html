@@ -357,6 +357,7 @@ onSnapshot(DOC, (snap)=>{
     DB.gardenLog = newDB.gardenLog||{};
     DB.suppliers = newDB.suppliers||[];
     DB.monthlyResetSeen = newDB.monthlyResetSeen||{};
+    if(newDB.sharedApiKey) DB.sharedApiKey = newDB.sharedApiKey;
     // Refresh current tab silently
     if(document.getElementById('app-main')) renderTab();
   }
@@ -854,7 +855,105 @@ function renderCoach(main){
     ]));
   }
 
+  // ===== שיחה עם אולגה — כל עובד יכול לדבר =====
+  coachChatUI(card);
+
   main.appendChild(card);
+}
+
+// בונה את ממשק השיחה בתוך כרטיס המאמן
+function coachChatUI(card){
+  const apiKey=getSharedApiKey();
+  const isAdmin=ME.role==='\u05de\u05e0\u05d4\u05dc';
+
+  // אין מפתח עדיין
+  if(!apiKey){
+    if(isAdmin){
+      // מנהל יכול להזין מפתח משותף
+      const box=el('div',{style:{background:'rgba(0,0,0,.22)',borderRadius:'10px',padding:'12px',marginTop:'12px',position:'relative'}});
+      box.appendChild(el('div',{style:{fontSize:'12px',marginBottom:'8px',lineHeight:1.5,color:'var(--cream)'}},'🔑 כדי שכל הצוות יוכל לדבר עם אולגה — הדבק כאן מפתח Claude. הוא יישמר לכל החווה.'));
+      const keyInp=el('input',{type:'password',placeholder:'sk-ant-api03-...',style:{width:'100%',background:'rgba(0,0,0,.3)',color:'#fff',border:'1px solid rgba(232,184,75,.3)',borderRadius:'8px',padding:'9px',fontSize:'12px',fontFamily:'monospace',marginBottom:'8px',boxSizing:'border-box'}});
+      box.appendChild(keyInp);
+      box.appendChild(el('button',{style:{width:'100%',background:'var(--gold)',color:'var(--earth)',border:'none',borderRadius:'9px',padding:'9px',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit'},onclick:()=>{
+        const k=keyInp.value.trim();
+        if(!k.startsWith('sk-ant-')){toast('המפתח לא נראה תקין — אמור להתחיל ב-sk-ant-');return;}
+        DB.sharedApiKey=k;
+        localStorage.setItem('anthropic_api_key',k);
+        save();toast('🔑 נשמר! כל הצוות יכול לדבר עם אולגה');renderTab();
+      }},'🔓 הפעל שיחה לכל הצוות'));
+      card.appendChild(box);
+    } else {
+      // עובד רואה הודעה שצריך מנהל
+      card.appendChild(el('div',{style:{background:'rgba(0,0,0,.2)',borderRadius:'10px',padding:'11px',marginTop:'12px',fontSize:'12px',opacity:.75,position:'relative',color:'var(--cream)'}},'💬 שיחה עם אולגה תהיה זמינה ברגע שהמנהל יפעיל אותה.'));
+    }
+    return;
+  }
+
+  // יש מפתח — בונים שדה שיחה
+  if(!window._coachChat)window._coachChat=[];
+  if(!window._coachBusy)window._coachBusy=false;
+
+  const wrap=el('div',{style:{marginTop:'14px',paddingTop:'12px',borderTop:'1px solid rgba(245,237,216,.15)',position:'relative'}});
+  wrap.appendChild(el('div',{style:{fontSize:'11px',fontWeight:700,color:'var(--gold)',marginBottom:'8px'}},'💬 דבר עם אולגה'));
+
+  // היסטוריית שיחה
+  if(window._coachChat.length>0){
+    const msgs=el('div',{style:{display:'flex',flexDirection:'column',gap:'7px',marginBottom:'10px',maxHeight:'260px',overflowY:'auto'}});
+    window._coachChat.forEach(m=>{
+      const isUser=m.role==='user';
+      msgs.appendChild(el('div',{style:{alignSelf:isUser?'flex-start':'flex-end',maxWidth:'88%',background:isUser?'rgba(232,184,75,.22)':'rgba(245,237,216,.95)',color:isUser?'var(--cream)':'var(--earth)',padding:'8px 12px',borderRadius:isUser?'12px 12px 12px 4px':'12px 12px 4px 12px',fontSize:'13px',lineHeight:1.5,whiteSpace:'pre-wrap'}},m.content));
+    });
+    if(window._coachBusy)msgs.appendChild(el('div',{style:{alignSelf:'flex-end',background:'rgba(245,237,216,.5)',color:'var(--earth)',padding:'8px 12px',borderRadius:'12px',fontSize:'13px'}},'אולגה כותבת…'));
+    wrap.appendChild(msgs);
+  }
+
+  // שורת קלט
+  const row=el('div',{style:{display:'flex',gap:'6px'}});
+  const inp=el('input',{type:'text',placeholder:'שאל אותי משהו… 🎤',style:{flex:1,background:'rgba(245,237,216,.95)',color:'var(--earth)',border:'1px solid rgba(232,184,75,.4)',borderRadius:'10px',padding:'10px 12px',fontSize:'14px',fontFamily:'inherit',outline:'none',boxSizing:'border-box'}});
+  const send=el('button',{style:{background:'var(--gold)',color:'var(--earth)',border:'none',borderRadius:'10px',padding:'10px 16px',fontSize:'13px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',flexShrink:0},disabled:window._coachBusy},'שלח');
+  const doSend=async()=>{
+    const text=inp.value.trim();
+    if(!text||window._coachBusy)return;
+    window._coachBusy=true;
+    window._coachChat.push({role:'user',content:text});
+    inp.value='';
+    renderTab();
+    try{
+      const sys='את אולגה — מאמנת חמה וחכמה של צוות חוות "שירת האדמה". מדברת עם '+ME.name+' ('+ME.role+').\n'+
+        'הצוות: '+DB.users.map(u=>u.emoji+' '+u.name).join(', ')+'.\n'+
+        'מצב: '+DB.oT.filter(t=>!t.done).length+' משימות פתוחות, '+DB.rT.length+' שגרתיות. חודש '+MONTHS[new Date().getMonth()]+'.\n'+
+        (DB.inv.filter(i=>i.qty<i.minQty).length?'מלאי חסר: '+DB.inv.filter(i=>i.qty<i.minQty).map(i=>i.name).join(', ')+'.\n':'')+
+        'עני בעברית, חם וקצר (2-4 משפטים). עזרי עם משימות, צמחים, סדנאות, חקלאות. הציעי צעד מעשי כשמתאים.';
+      const resp=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':getSharedApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1024,system:sys,messages:window._coachChat.map(m=>({role:m.role,content:m.content}))}),
+      });
+      const data=await resp.json();
+      if(data.error)window._coachChat.push({role:'assistant',content:'⚠️ '+(data.error.message||'שגיאה')});
+      else if(data.content&&data.content[0]){
+        const reply=data.content.filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+        window._coachChat.push({role:'assistant',content:reply});
+      }
+    }catch(e){window._coachChat.push({role:'assistant',content:'⚠️ שגיאת רשת. נסה שוב.'});}
+    finally{window._coachBusy=false;renderTab();}
+  };
+  send.onclick=doSend;
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')doSend();});
+  row.appendChild(inp);row.appendChild(send);
+  wrap.appendChild(row);
+
+  // ניקוי שיחה
+  if(window._coachChat.length>0){
+    wrap.appendChild(el('button',{style:{background:'transparent',color:'rgba(232,184,75,.6)',border:'none',fontSize:'11px',cursor:'pointer',fontFamily:'inherit',marginTop:'6px',padding:'4px'},onclick:()=>{window._coachChat=[];renderTab();}},'נקה שיחה'));
+  }
+
+  card.appendChild(wrap);
+}
+
+// מפתח משותף — מ-Firebase (לכל החווה) או localStorage (גיבוי)
+function getSharedApiKey(){
+  return (DB.sharedApiKey&&DB.sharedApiKey.startsWith('sk-ant-'))?DB.sharedApiKey:(localStorage.getItem('anthropic_api_key')||'');
 }
 
 function pickFarmTip(isAdmin){
